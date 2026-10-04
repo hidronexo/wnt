@@ -3,11 +3,11 @@ name=Water Network Tools
 qgisMinimumVersion=3.38
 description=Water Network Modelling Utilities
 version=1.4.3
-author=Andrés García Martínez
+author=HIDRONEXO
 email=opensource@hidronexo.com
-tracker=https://github.com/andresgciamtez/wnt/issues
-repository=https://github.com/andresgciamtez/wnt
-homepage=https://github.com/andresgciamtez/wnt
+tracker=https://github.com/hidronexo/wnt/issues
+repository=https://github.com/hidronexo/wnt
+homepage=https://github.com/hidronexo/wnt
 category=Analysis
 icon=resources/icon.png
 hasProcessingProvider=yes
@@ -15,7 +15,7 @@ tags=water, hydraulics , water network analysis, epanet, WDS modelling
 experimental=False
 deprecated=False
 server=False
-about=<p>A set of processes for modeling water networks. Starting from scratch or expanding an existing network, it is possible to import and export models, scenarios and other files for network analysis and optimization.</p><p>Get Started: <a href="https://www.youtube.com/playlist?list=PLzE4DxrnNT-Fg0Ztku6jbIG8QEEOHqYEH">Youtube tutorial</a>. Autor: Andrés García Martínez <a href="https://bit.ly/2m8otrB">LinkedIn</a></p>
+about=<p>A set of processes for modeling water networks. Starting from scratch or expanding an existing network, it is possible to import and export models, scenarios and other files for network analysis and optimization.</p><p>Get Started: <a href="https://www.youtube.com/playlist?list=PLzE4DxrnNT-Fg0Ztku6jbIG8QEEOHqYEH">Youtube tutorial</a>.</p>
 changelog=
     1.4.3
         Coordinate Spanish process names and validate catalogs before packaging.

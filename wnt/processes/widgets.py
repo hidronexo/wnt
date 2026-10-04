@@ -6,7 +6,7 @@ from qgis.PyQt.QtWidgets import QComboBox
 try:
     from processing.gui.wrappers import WidgetWrapper
 except ImportError:
-    class WidgetWrapper:  # pragma: no cover - used only when Processing GUI is unavailable
+    class WidgetWrapper:  # type: ignore[no-redef]  # pragma: no cover - used only when Processing GUI is unavailable
         pass
 
 from ..utils.utils_tin import surface_names

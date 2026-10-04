@@ -33,7 +33,7 @@ Available processes:
 - `Pipe properties to EPANET scenario file (.scn)` - Writes an EPANET pipe scenario with diameter and roughness values for pipe links.
 - `Network to XML` - Writes WNT Network XML with versioned network data and preserved EPANET, SWMM, LandXML and custom property domains, or writes a LandXML 1.2 pipe-network file.
 - `Network to pipesizing data file (.pro)` - Writes pipesizing input data with `[SETTINGS]`, `[PRESSURES]`, `[FIRE_SCENARIOS]` and `[PIPES]` sections, including peak/fire factors, required pressures and optional hydrant-pair fire scenarios.
-- `Network to pressure pipe optimization data file (.ext)` - Writes PPNO (`Pressurized Pipe Network Optimizer`) input data from network layers, an EPANET `.inp` model and a pipe catalog `.cat` file. See https://github.com/andresgciamtez/ppno.
+- `Network to pressure pipe optimization data file (.ext)` - Writes PPNO (`Pressurized Pipe Network Optimizer`) input data from network layers, an EPANET `.inp` model and a pipe catalog `.cat` file. See https://github.com/hidronexo/ppno.
 
 ### Fire
 
@@ -77,7 +77,7 @@ Run from an activated development environment:
 python package_wnt.py
 ```
 
-Andrés García Martínez (opensource@hidronexo.com)
+HIDRONEXO (opensource@hidronexo.com)
 
 ===
 
@@ -114,7 +114,7 @@ Procesos disponibles:
 - `Propiedades de tuberías a archivo de escenario de EPANET (.scn)` - Escribe un escenario EPANET de tuberías con valores de diámetro y rugosidad para links de tipo tubería.
 - `Red a XML` - Escribe WNT Network XML con datos de red versionados y conserva dominios de propiedades EPANET, SWMM, LandXML y personalizados, o escribe una red de tuberías LandXML 1.2.
 - `Red a archivo de datos pipesizing (.pro)` - Escribe datos de entrada para pipesizing con secciones `[SETTINGS]`, `[PRESSURES]`, `[FIRE_SCENARIOS]` y `[PIPES]`, incluyendo factores punta/incendio, presiones requeridas y escenarios opcionales de incendio a partir de pares de hidrantes.
-- `Red a archivo de datos para optimización de tuberías a presión (.ext)` - Escribe datos de entrada para PPNO (`Pressurized Pipe Network Optimizer`) desde capas de red, un modelo EPANET `.inp` y un catálogo de tuberías `.cat`. Consulta https://github.com/andresgciamtez/ppno.
+- `Red a archivo de datos para optimización de tuberías a presión (.ext)` - Escribe datos de entrada para PPNO (`Pressurized Pipe Network Optimizer`) desde capas de red, un modelo EPANET `.inp` y un catálogo de tuberías `.cat`. Consulta https://github.com/hidronexo/ppno.
 
 ### Incendio
 
@@ -158,4 +158,4 @@ Ejecutar desde un entorno de desarrollo activo:
 python package_wnt.py
 ```
 
-Andrés García Martínez (opensource@hidronexo.com)
+HIDRONEXO (opensource@hidronexo.com)

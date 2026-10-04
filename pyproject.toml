@@ -1,0 +1,48 @@
+[project]
+name = "wnt"
+version = "1.4.3"
+authors = [{ name = "HIDRONEXO", email = "opensource@hidronexo.com" }]
+description = "Water Network Tools: a QGIS plugin for water network modelling"
+readme = "README.md"
+license = "GPL-2.0-or-later"
+license-files = ["LICENSE"]
+requires-python = ">=3.9"
+dependencies = ["defusedxml"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Topic :: Scientific/Engineering",
+]
+
+[project.urls]
+Homepage = "https://github.com/hidronexo/wnt"
+"Bug Tracker" = "https://github.com/hidronexo/wnt/issues"
+
+[tool.pixi.workspace]
+channels = ["conda-forge"]
+platforms = ["win-64"]
+
+[tool.pixi.dependencies]
+python = ">=3.11,<3.14"
+defusedxml = "*"
+pytest = "*"
+flake8 = "*"
+mypy = "*"
+commitizen = "*"
+
+[tool.pixi.tasks]
+test = "pytest -q -m \"not qgis\""
+lint = "flake8 wnt tests"
+typecheck = "mypy wnt"
+release = "cz bump"
+
+[tool.commitizen]
+name = "cz_conventional_commits"
+version_provider = "pep621"
+version_files = ["wnt/metadata.txt:^version="]
+tag_format = "v$version"
+major_version_zero = false
+update_changelog_on_bump = false
+
+[tool.mypy]
+python_version = "3.11"
+ignore_missing_imports = true
