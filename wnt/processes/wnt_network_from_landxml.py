@@ -40,7 +40,11 @@ class NetworkFromLandXMLAlgorithm(NetworkFromXmlAlgorithm):
 
     def processAlgorithm(self, parameters, context, feedback):
         xml_file = self.parameterAsFile(parameters, self.INPUT, context)
-        if xml_root_name(xml_file) != "LandXML":
+        try:
+            root_name = xml_root_name(xml_file)
+        except ValueError as exc:
+            error(feedback, str(exc))
+        if root_name != "LandXML":
             error(feedback, "Invalid LandXML file: expected LandXML root")
         network_names = parse_name_list(self.parameterAsString(parameters, self.NETWORK_NAMES, context))
         return self._process_landxml(xml_file, network_names, parameters, context, feedback)

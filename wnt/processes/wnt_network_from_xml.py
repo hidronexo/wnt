@@ -58,8 +58,8 @@ def xml_root_name(path):
     """Return the local root element name for an XML file."""
     try:
         tag = safe_xml_parse(path).getroot().tag
-    except Exception:
-        return ""
+    except Exception as exc:
+        raise ValueError(f"Cannot read XML file: {exc}") from exc
     return tag.split("}", 1)[-1]
 
 
@@ -254,7 +254,10 @@ class NetworkFromXmlAlgorithm(WntProcessingAlgorithm):
         xml_file = self.parameterAsFile(parameters, self.INPUT, context)
         version_id = self.parameterAsString(parameters, self.VERSION_ID, context) or None
         network_names = parse_name_list(self.parameterAsString(parameters, self.NETWORK_NAMES, context))
-        root_name = xml_root_name(xml_file)
+        try:
+            root_name = xml_root_name(xml_file)
+        except ValueError as exc:
+            error(feedback, str(exc))
         if root_name == "wntNetworkStore":
             return self._process_wnt_xml(xml_file, version_id, network_names, parameters, context, feedback)
         if root_name == "LandXML":

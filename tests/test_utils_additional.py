@@ -1,5 +1,6 @@
 """Additional coverage for pure utility modules."""
 
+import builtins
 import textwrap
 
 import pytest
@@ -22,6 +23,8 @@ from wnt.utils.utils_graph import (
     validate_records,
 )
 from wnt.utils.utils_landxml import network_from_xml
+from wnt.utils import safe_xml
+from wnt.utils.safe_xml import _stdlib_parse
 
 
 def tin_helpers():
@@ -941,3 +944,37 @@ def test_landxml_parsers_reject_entity_expansion(tmp_path):
         surface_names(xml)
     with pytest.raises(Exception):
         TIN().from_landxml(xml)
+
+
+def test_stdlib_xml_fallback_parses_landxml_and_rejects_entities(monkeypatch, tmp_path):
+    valid = tmp_path / "valid.xml"
+    valid.write_text(
+        '<LandXML xmlns="http://www.landxml.org/schema/LandXML-1.2" />',
+        encoding="utf-8",
+    )
+    malicious = tmp_path / "malicious.xml"
+    malicious.write_text(
+        '<!DOCTYPE data [<!ENTITY xxe "expanded">]><LandXML>&xxe;</LandXML>',
+        encoding="utf-8",
+    )
+    malicious_utf16 = tmp_path / "malicious-utf16.xml"
+    malicious_utf16.write_text(
+        '<!DOCTYPE data [<!ENTITY xxe "expanded">]><LandXML>&xxe;</LandXML>',
+        encoding="utf-16",
+    )
+
+    assert _stdlib_parse(valid).getroot().tag.endswith("LandXML")
+    with pytest.raises(ValueError, match="DTD and entity declarations"):
+        _stdlib_parse(malicious)
+    with pytest.raises(ValueError, match="DTD and entity declarations"):
+        _stdlib_parse(malicious_utf16)
+
+    real_import = builtins.__import__
+
+    def import_without_defusedxml(name, *args, **kwargs):
+        if name == "defusedxml":
+            raise ImportError("defusedxml unavailable in QGIS")
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", import_without_defusedxml)
+    assert safe_xml.parse(valid).getroot().tag.endswith("LandXML")
