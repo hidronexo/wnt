@@ -31,7 +31,7 @@ def test_all_algorithms_expose_metadata_and_parameters():
     provider = WaterNetworkToolsProvider()
     provider.loadAlgorithms()
 
-    assert len(provider.algorithms()) == 23
+    assert len(provider.algorithms()) == 24
 
     for algorithm in provider.algorithms():
         clone = algorithm.createInstance()
@@ -208,4 +208,5 @@ def test_corrected_help_strings_are_exposed():
     assert "not generated" in algorithms["hydrant_pairs"].shortHelpString()
     assert algorithms["network_to_xml"].displayName() == "Network to XML"
     assert algorithms["network_from_xml"].displayName() == "Network from XML"
+    assert algorithms["network_from_landxml"].displayName() == "Network from LandXML file"
     assert algorithms["network_to_graph"].displayName() == "Network to graph file"

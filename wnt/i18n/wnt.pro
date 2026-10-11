@@ -12,6 +12,7 @@ SOURCES = ../wnt.py \
           ../processes/wnt_network_to_graph.py \
           ../processes/wnt_hydrant_pairs.py \
           ../processes/wnt_network_from_xml.py \
+          ../processes/wnt_network_from_landxml.py \
           ../processes/wnt_merge_networks.py \
           ../processes/wnt_network_from_epanet.py \
           ../processes/wnt_network_from_lines.py \

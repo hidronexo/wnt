@@ -18,6 +18,7 @@ ALGORITHM_SPECS = (
     ('.processes.wnt_network_to_xml', 'NetworkToXmlAlgorithm'),
     ('.processes.wnt_network_to_graph', 'NetworkToGraphAlgorithm'),
     ('.processes.wnt_hydrant_pairs', 'HydrantPairsAlgorithm'),
+    ('.processes.wnt_network_from_landxml', 'NetworkFromLandXMLAlgorithm'),
     ('.processes.wnt_network_from_xml', 'NetworkFromXmlAlgorithm'),
     ('.processes.wnt_merge_networks', 'MergeNetworksAlgorithm'),
     ('.processes.wnt_network_from_epanet', 'NetworkFromEpanetAlgorithm'),

@@ -161,6 +161,10 @@ def test_processing_toolbox_entries_use_spanish_catalog():
             'Network from EPANET file',
             'Importar red desde EPANET',
         ),
+        'processes/wnt_network_from_landxml.py': (
+            'Network from LandXML file',
+            'Importar red desde LandXML',
+        ),
         'processes/wnt_network_from_lines.py': (
             'Network from lines',
             'Crear red a partir de líneas',
@@ -275,6 +279,10 @@ def test_processing_toolbox_entries_use_spanish_ts_fallback(monkeypatch):
         'processes/wnt_network_from_epanet.py': (
             'Network from EPANET file',
             'Importar red desde EPANET',
+        ),
+        'processes/wnt_network_from_landxml.py': (
+            'Network from LandXML file',
+            'Importar red desde LandXML',
         ),
         'processes/wnt_network_from_lines.py': (
             'Network from lines',

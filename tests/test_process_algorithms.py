@@ -19,6 +19,7 @@ from wnt.processes.wnt_elevation_from_tin import ElevationFromTINAlgorithm
 from wnt.processes.wnt_network_to_epanet import NetworkToEpanetAlgorithm
 from wnt.processes.wnt_network_to_xml import NetworkToXmlAlgorithm
 from wnt.processes.wnt_hydrant_pairs import HydrantPairsAlgorithm
+from wnt.processes.wnt_network_from_landxml import NetworkFromLandXMLAlgorithm
 from wnt.processes.wnt_network_from_xml import NetworkFromXmlAlgorithm
 from wnt.processes.wnt_merge_networks import MergeNetworksAlgorithm, aligned_feature
 from wnt.processes.wnt_network_from_epanet import NetworkFromEpanetAlgorithm
@@ -1420,6 +1421,39 @@ def test_network_from_xml_reports_missing_landxml_pipe_networks(monkeypatch, tmp
     with pytest.raises(QgsProcessingException):
         algorithm.processAlgorithm({}, None, feedback)
     assert feedback.errors == ["ERROR: No LandXML PipeNetwork definitions found"]
+
+
+def test_network_from_landxml_rejects_other_xml_and_passes_selected_names(monkeypatch, tmp_path):
+    algorithm = NetworkFromLandXMLAlgorithm()
+    xml = tmp_path / "network.xml"
+    xml.write_text("<wntNetworkStore />", encoding="utf-8")
+    bind_common_parameters(
+        monkeypatch,
+        algorithm,
+        fields={algorithm.NETWORK_NAMES: "Water; Storm"},
+        files={algorithm.INPUT: xml},
+    )
+
+    feedback = FakeFeedback()
+    with pytest.raises(QgsProcessingException):
+        algorithm.processAlgorithm({}, None, feedback)
+    assert feedback.errors == ["ERROR: Invalid LandXML file: expected LandXML root"]
+
+    xml.write_text(
+        '<LandXML xmlns="http://www.landxml.org/schema/LandXML-1.2" />',
+        encoding="utf-8",
+    )
+    calls = []
+    monkeypatch.setattr(
+        algorithm,
+        "_process_landxml",
+        lambda xml_file, names, parameters, context, feedback: calls.append(
+            (xml_file, names)
+        ) or {"ok": True},
+    )
+
+    assert algorithm.processAlgorithm({}, None, feedback) == {"ok": True}
+    assert calls == [(str(xml), ["Water", "Storm"])]
 
 def test_network_from_xml_imports_landxml_features(monkeypatch, tmp_path):
     algorithm = NetworkFromXmlAlgorithm()

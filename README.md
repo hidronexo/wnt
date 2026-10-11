@@ -57,6 +57,7 @@ Available processes:
 - `Configure EPANET lib` - Sets the EPANET toolkit library path used by EPANET result imports.
   Configure only a trusted EPANET 2 toolkit library installed on your system.
 - `Network from EPANET file` - Imports EPANET `.inp` files as WNT node and link layers.
+- `Network from LandXML file` - Imports one or more LandXML 1.2 pressure, sanitary or storm pipe networks as WNT node and link layers, preserving the declared coordinate reference system when available.
 - `Results from EPANET` - Imports hydraulic results, quality results or both from EPANET simulations.
 - `Network from XML` - Imports WNT Network XML files, including selected network versions, or imports LandXML 1.2 pipe networks as WNT node and link layers.
 
@@ -138,6 +139,7 @@ Procesos disponibles:
 - `Configurar biblioteca EPANET` - Define la ruta de la biblioteca del toolkit de EPANET usada para importar resultados EPANET.
   Configura únicamente una biblioteca de confianza del toolkit EPANET 2 instalada en el sistema.
 - `Red desde archivo de EPANET` - Importa archivos EPANET `.inp` como capas WNT de nodos y links.
+- `Importar red desde LandXML` - Importa una o varias redes de tuberías a presión, saneamiento o pluviales en formato LandXML 1.2 como capas WNT de nodos y links, conservando el sistema de referencia de coordenadas declarado cuando está disponible.
 - `Resultados de EPANET` - Importa resultados hidráulicos, resultados de calidad o ambos desde simulaciones EPANET.
 - `Red desde XML` - Importa archivos WNT Network XML, incluidas versiones de red seleccionadas, o importa redes de tuberías LandXML 1.2 como capas WNT de nodos y links.
 

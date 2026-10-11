@@ -1132,5 +1132,25 @@
             <source>Validate</source>
             <translation>Validar</translation>
         </message>
+        <message>
+            <source>&lt;p&gt;Imports pipe networks from a LandXML 1.2 file.&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;Creates WNT node and link layers for pressure, sanitary and storm networks.&lt;/li&gt;
+&lt;li&gt;Network names are written as a comma or semicolon separated list. If empty, all networks are loaded.&lt;/li&gt;
+&lt;li&gt;Uses the coordinate reference system stored in the LandXML file when available.&lt;/li&gt;
+&lt;/ul&gt;
+        </source>
+            <translation>&lt;p&gt;Importa redes de tuberías desde un archivo LandXML 1.2.&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;Crea capas WNT de nodos y links para redes a presión, de saneamiento y pluviales.&lt;/li&gt;
+&lt;li&gt;Los nombres de red se escriben en una lista separada por comas o puntos y comas. Si se deja vacía, se cargan todas las redes.&lt;/li&gt;
+&lt;li&gt;Utiliza el sistema de referencia de coordenadas almacenado en el archivo LandXML cuando está disponible.&lt;/li&gt;
+&lt;/ul&gt;
+        </translation>
+        </message>
+        <message>
+            <source>Network from LandXML file</source>
+            <translation>Importar red desde LandXML</translation>
+        </message>
     </context>
 </TS>
