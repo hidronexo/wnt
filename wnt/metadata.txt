@@ -17,9 +17,12 @@ deprecated=False
 server=False
 about=<p>A set of processes for modeling water networks. Starting from scratch or expanding an existing network, it is possible to import and export models, scenarios and other files for network analysis and optimization.</p><p>Get Started: <a href="https://www.youtube.com/playlist?list=PLzE4DxrnNT-Fg0Ztku6jbIG8QEEOHqYEH">Youtube tutorial</a>.</p>
 changelog=
-    1.4.3
-        Allow safe LandXML import when defusedxml is not installed in QGIS.
+    1.5.0
         Add a dedicated Network from LandXML file process with optional network selection.
+        Allow safe LandXML import when defusedxml is not installed in QGIS.
+        Support plugin ZIP creation with current pb_tool releases.
+        Adopt HIDRONEXO governance, public metadata and repository links.
+    1.4.3
         Coordinate Spanish process names and validate catalogs before packaging.
         Bind hydrant separation units to the input layer CRS.
         Update contact to opensource@hidronexo.com.
