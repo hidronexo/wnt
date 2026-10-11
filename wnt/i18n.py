@@ -7,7 +7,7 @@ from qgis.PyQt.QtCore import QCoreApplication, QLocale, QSettings
 from .utils import safe_xml
 
 TR_CONTEXT = 'WaterNetworkTools'
-_TS_CACHE = {}
+_TS_CACHE: dict = {}
 
 
 def _locale_prefix():
