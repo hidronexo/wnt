@@ -2,13 +2,14 @@
 """Validate, deploy, and package the WNT QGIS plugin."""
 
 import argparse
+import configparser
 import importlib.util
 import os
 from pathlib import Path
 import shutil
 import subprocess  # nosec B404
 import sys
-import tempfile
+import zipfile
 
 
 class PackageError(RuntimeError):
@@ -58,13 +59,38 @@ def executable_locations():
         qt_bin_dir / "lrelease.exe",
         qt_bin_dir / "lrelease",
     ]
-    archives = [bin_dir / "7z.exe", bin_dir / "7z", bin_dir / "zip"]
+    return pb_tool, lrelease
 
-    if os.name == "nt":
-        program_files = os.environ.get("ProgramFiles", r"C:\Program Files")
-        archives.append(Path(program_files) / "7-Zip/7z.exe")
 
-    return pb_tool, lrelease, archives
+def create_plugin_zip(plugin_dir, archive_path):
+    """Create a QGIS plugin archive from the files declared in pb_tool.cfg."""
+    config = configparser.ConfigParser(interpolation=None)
+    config.read(plugin_dir / "pb_tool.cfg", encoding="utf-8")
+    plugin_name = config.get("plugin", "name")
+    file_options = ("python_files", "main_dialog", "compiled_ui_files", "resource_files", "extras")
+    configured_files = []
+    for option in file_options:
+        configured_files.extend(config.get("files", option, fallback="").split())
+    configured_dirs = config.get("files", "extra_dirs", fallback="").split()
+
+    entries = []
+    for relative_name in configured_files:
+        source = plugin_dir / relative_name
+        if not source.is_file():
+            raise PackageError(f"Configured plugin file not found: {source}")
+        entries.append((source, Path(plugin_name) / relative_name))
+    for relative_name in configured_dirs:
+        source_dir = plugin_dir / relative_name
+        if not source_dir.is_dir():
+            raise PackageError(f"Configured plugin directory not found: {source_dir}")
+        for source in source_dir.rglob("*"):
+            if not source.is_file() or "__pycache__" in source.parts or source.suffix == ".pyc":
+                continue
+            entries.append((source, Path(plugin_name) / source.relative_to(plugin_dir)))
+
+    with zipfile.ZipFile(archive_path, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+        for source, archive_name in sorted(entries, key=lambda entry: entry[1].as_posix()):
+            archive.write(source, archive_name.as_posix())
 
 
 def parse_args(argv=None):
@@ -94,16 +120,13 @@ def package(argv=None):
     for module in ("pytest", "bandit", "flake8", "defusedxml", "pb_tool"):
         require_module(module)
 
-    _, lrelease_paths, archive_paths = executable_locations()
+    _, lrelease_paths = executable_locations()
     pb_command = [sys.executable, "-c", "from pb_tool.pb_tool import cli; cli()"]
     lrelease = find_executable(
         ("lrelease", "lrelease-qt5", "lrelease5", "pyside6-lrelease"),
         lrelease_paths,
     )
-    archive = find_executable(("7z", "7za", "zip"), archive_paths)
-
     env = os.environ.copy()
-    env["PATH"] = str(archive.parent) + os.pathsep + env.get("PATH", "")
 
     run_step("Checking translations",
              [sys.executable, "translation_catalog.py", "--check"], repository, env)
@@ -131,14 +154,11 @@ def package(argv=None):
     if not args.skip_deploy:
         run_step("Deploying plugin", pb_command + ["deploy", "-y"], plugin_dir, env)
 
-    # A fresh staging directory prevents quick zip from reusing an installed plugin.
-    with tempfile.TemporaryDirectory(prefix="wnt-package-") as staging:
-        run_step("Creating plugin ZIP",
-                 pb_command + ["zip", "-q", "-p", staging, "--no-docs"], plugin_dir, env)
-
     archive_path = plugin_dir / "wnt.zip"
+    print("\nCreating plugin ZIP...", flush=True)
+    create_plugin_zip(plugin_dir, archive_path)
     if not archive_path.is_file():
-        raise PackageError(f"pb_tool did not create the expected archive: {archive_path}")
+        raise PackageError(f"Packaging did not create the expected archive: {archive_path}")
 
     print(f"\nPackage created: {archive_path}")
     return 0
