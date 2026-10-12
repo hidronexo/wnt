@@ -2,7 +2,7 @@
 name=Water Network Tools
 qgisMinimumVersion=3.38
 description=Water Network Modelling Utilities
-version=1.5.0
+version=1.5.1
 author=HIDRONEXO
 email=opensource@hidronexo.com
 tracker=https://github.com/hidronexo/wnt/issues
