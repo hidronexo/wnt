@@ -15,8 +15,10 @@ tags=water, hydraulics , water network analysis, epanet, WDS modelling
 experimental=False
 deprecated=False
 server=False
-about=<p>A set of processes for modeling water networks. Starting from scratch or expanding an existing network, it is possible to import and export models, scenarios and other files for network analysis and optimization.</p><p>Get Started: <a href="https://www.youtube.com/playlist?list=PLzE4DxrnNT-Fg0Ztku6jbIG8QEEOHqYEH">Youtube tutorial</a>.</p>
+about=A set of processes for modeling water networks. Starting from scratch or expanding an existing network, it is possible to import and export models, scenarios and other files for network analysis and optimization. Get Started: https://www.youtube.com/playlist?list=PLzE4DxrnNT-Fg0Ztku6jbIG8QEEOHqYEH
 changelog=
+    1.5.1
+        Use plain text in plugin metadata for QGIS Plugins compatibility.
     1.5.0
         Add a dedicated Network from LandXML file process with optional network selection.
         Allow safe LandXML import when defusedxml is not installed in QGIS.
