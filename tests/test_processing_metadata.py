@@ -18,6 +18,45 @@ QGIS_APP = get_qgis_app()
 pytestmark = pytest.mark.qgis
 
 
+def test_inp_dialog_layer_and_advanced_order():
+    from wnt.processes.wnt_network_to_epanet import NetworkToEpanetAlgorithm
+    from wnt.processes.wnt_network_from_epanet import NetworkFromEpanetAlgorithm
+    categories = ('JUNCTIONS', 'RESERVOIRS', 'TANKS', 'PIPES', 'PUMPS', 'VALVES')
+    exporter = NetworkToEpanetAlgorithm()
+    exporter.initAlgorithm()
+    parameters = exporter.parameterDefinitions()
+    main = [p.name() for p in parameters if not p.flags() & QgsProcessingParameterDefinition.FlagAdvanced]
+    assert main == ['INPUT_' + name for name in categories] + ['WORKFLOW', 'INPUT_EPANET', 'OUTPUT']
+    advanced = [p for p in parameters if p.flags() & QgsProcessingParameterDefinition.FlagAdvanced]
+    assert [p.name() for p in advanced] == [name for _, names in exporter.OPTION_GROUPS for name in names]
+    families = [p.description().split(' — ')[0] for p in advanced if ' — ' in p.description()]
+    contiguous = [family for index, family in enumerate(families) if index == 0 or family != families[index - 1]]
+    assert contiguous == ['Hydraulics', 'Emitters', 'Energy', 'Quality', 'Reactions',
+                          'Calculation stability', 'EPANET 2.2', 'Times', 'Report']
+    version22 = ['DEMAND_MODEL', 'MINIMUM_PRESSURE', 'REQUIRED_PRESSURE', 'PRESSURE_EXPONENT',
+                 'MAXIMUM_HEAD_ERROR', 'MAXIMUM_FLOW_CHANGE']
+    assert [p.name() for p in advanced if p.description().startswith('EPANET 2.2 —')] == version22
+    for name in version22:
+        assert ('EPANET_VERSION', (1,)) in exporter.parameterDefinition(name).metadata()['wnt_enabled_when']
+    importer = NetworkFromEpanetAlgorithm()
+    importer.initAlgorithm()
+    assert [p.name() for p in importer.parameterDefinitions()] == ['INPUT', 'CRS', 'VERSION_MODE'] + [
+        'OUTPUT_' + name for name in categories]
+    for algorithm, prefix in ((exporter, 'INPUT_'), (importer, 'OUTPUT_')):
+        dialog = AlgorithmDialog(algorithm)
+        dialog.show()
+        QGIS_APP.processEvents()
+        wrappers = dialog.mainWidget().wrappers
+        for category in categories:
+            assert prefix + category in wrappers
+            assert not algorithm.parameterDefinition(prefix + category).flags() & QgsProcessingParameterDefinition.FlagAdvanced
+            wrapper = wrappers[prefix + category]
+            widget = wrapper.wrappedWidget() if hasattr(wrapper, 'wrappedWidget') else wrapper.widget
+            assert widget.isVisible()
+        dialog.close()
+        dialog.deleteLater()
+
+
 def test_provider_metadata_icon_and_unload():
     provider = WaterNetworkToolsProvider()
 
@@ -191,11 +230,11 @@ def test_network_to_epanet_exposes_workflow_controls():
         "Existing EPANET model file"
     )
     assert algorithm.parameterDefinition(algorithm.EPANET_VERSION).description() == (
-        "EPANET version"
+        "Hydraulics — EPANET version"
     )
-    assert algorithm.parameterDefinition(algorithm.FLOW_UNITS).description() == "Flow units"
+    assert algorithm.parameterDefinition(algorithm.FLOW_UNITS).description() == "Hydraulics — Flow units"
     names = [parameter.name() for parameter in algorithm.parameterDefinitions()]
-    assert names[:2] == [algorithm.WORKFLOW, algorithm.INPUT_EPANET]
+    assert names[:8] == list(algorithm.INPUTS.values()) + [algorithm.WORKFLOW, algorithm.INPUT_EPANET]
     assert algorithm.parameterDefinition(algorithm.INPUT_EPANET).metadata()[
         "epanet_existing_only"
     ] is True

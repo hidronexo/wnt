@@ -18,6 +18,8 @@ server=False
 about=A set of processes for modeling water networks. Starting from scratch or expanding an existing network, it is possible to import and export models, scenarios and other files for network analysis and optimization. Get Started: https://www.youtube.com/playlist?list=PLzE4DxrnNT-Fg0Ztku6jbIG8QEEOHqYEH
 changelog=
     1.6.0
+        Complete advanced hydraulic and report options; keep all EPANET 2.2-only settings together.
+        Restore six visible model-layer selectors and consecutive advanced option families in INP dialogs.
         Import EPANET INP models as six typed and grouped model layers.
         Store source INP and EPANET version provenance without the generic JSON field.
         Export six model layers and edit EPANET options for new models.

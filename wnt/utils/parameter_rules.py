@@ -18,6 +18,14 @@ def parameter_rules(algorithm, name, metadata):
     if metadata.get('epanet_existing_only'):
         rules.append(('WORKFLOW', (0,)))
     if algorithm == 'network_to_epanet':
+        if name == 'HYDRAULICS_FILE':
+            rules.append(('HYDRAULICS_MODE', (1, 2)))
+        if name == 'UNBALANCED_TRIALS':
+            rules.append(('UNBALANCED', (1,)))
+        if name == 'REPORT_NODE_IDS':
+            rules.append(('REPORT_NODES', (2,)))
+        if name == 'REPORT_LINK_IDS':
+            rules.append(('REPORT_LINKS', (2,)))
         if name in ('DEMAND_MODEL', 'MINIMUM_PRESSURE', 'REQUIRED_PRESSURE', 'PRESSURE_EXPONENT', 'MAXIMUM_HEAD_ERROR', 'MAXIMUM_FLOW_CHANGE'):
             rules.append(('EPANET_VERSION', (1,)))
         if name in ('MINIMUM_PRESSURE', 'REQUIRED_PRESSURE', 'PRESSURE_EXPONENT'):

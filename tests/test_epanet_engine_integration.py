@@ -4,7 +4,7 @@ import os
 import pytest
 from wnt.utils.utils_epanet_api import EpanetToolkit
 from wnt.utils.utils_epanet_model import scratch_sections, write_sections
-from wnt.utils.utils_epanet_options import analysis_sections
+from wnt.utils.utils_epanet_options import analysis_sections, report_field_lines, REPORT_FIELDS
 from wnt.utils.model_validation import validate_model
 
 
@@ -15,7 +15,8 @@ def test_analysis_families_are_accepted_by_epanet(tmp_path, quality):
     options = dict(version='2.2', flow_units='LPS', headloss='H-W', demand_model='DDA',
                    default_pattern='', demand_multiplier=1, emitter_exponent=0.5,
                    viscosity=1, diffusivity=1, specific_gravity=1, trials=40, accuracy=0.001,
-                   unbalanced='STOP', minimum_pressure=0, required_pressure=15, pressure_exponent=0.5)
+                   unbalanced='CONTINUE', unbalanced_trials=8,
+                   minimum_pressure=0, required_pressure=15, pressure_exponent=0.5)
     sections = scratch_sections(options)
     sections['JUNCTIONS'] = ['J 0 1']
     sections['RESERVOIRS'] = ['R 30']
@@ -23,8 +24,13 @@ def test_analysis_families_are_accepted_by_epanet(tmp_path, quality):
     sections['COORDINATES'] = ['R 0 0', 'J 1000 0']
     for name, rows in analysis_sections(dict(QUALITY_ANALYSIS=quality, TRACE_NODE='R',
                                             DURATION='1:00', ENERGY_PRICE=0.2,
-                                            DEMAND_CHARGE=1, GLOBAL_BULK=-0.1), '2.2').items():
+                                            DEMAND_CHARGE=1, GLOBAL_BULK=-0.1,
+                                            HYDRAULICS_MODE=1, HYDRAULICS_FILE=str(tmp_path / 'saved hydraulics.hyd'),
+                                            REPORT_NODES=2, REPORT_NODE_IDS='J R',
+                                            REPORT_LINKS=2, REPORT_LINK_IDS='P'), '2.2').items():
         sections.setdefault(name, []).extend(rows)
+    sections['REPORT'].extend(report_field_lines([[field, 'YES', '3', '', ''] for field in REPORT_FIELDS]))
+    sections['REPORT'].extend(report_field_lines([['PRESSURE', '', '', '100', '0']]))
     validate_model(sections)
     path = tmp_path / 'model.inp'
     write_sections(path, sections)

@@ -15,6 +15,8 @@ def sources():
     result = set()
     from wnt.utils.utils_epanet_options import OPTION_SPECS
     result.update(spec[1] for spec in OPTION_SPECS)
+    result.update(choice for _, _, kind, _, choices, _, _ in OPTION_SPECS
+                  if kind == 'enum' for choice in choices if not choice.isupper())
     for path in (ROOT / 'wnt').rglob('*.py'):
         for node in ast.walk(ast.parse(path.read_text(encoding='utf-8-sig'))):
             if not isinstance(node, ast.Call) or not node.args:

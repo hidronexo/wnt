@@ -113,6 +113,10 @@ def normalise_source(path):
 
 def option_lines(options):
     """Serialize typed scratch-model options to EPANET option lines."""
+    extra_trials = options.get('unbalanced_trials', 0)
+    if options['unbalanced'] == 'CONTINUE':
+        if not math.isfinite(float(extra_trials)) or float(extra_trials) < 0 or float(extra_trials) != int(extra_trials):
+            raise ValueError('Additional trials must be a nonnegative integer')
     for key in ('demand_multiplier', 'emitter_exponent', 'viscosity', 'diffusivity',
                 'specific_gravity', 'trials', 'accuracy', 'minimum_pressure',
                 'required_pressure', 'pressure_exponent'):
@@ -135,7 +139,7 @@ def option_lines(options):
         format_tokens(("SPECIFIC GRAVITY", options["specific_gravity"])),
         format_tokens(("TRIALS", options["trials"])),
         format_tokens(("ACCURACY", options["accuracy"])),
-        format_tokens(("UNBALANCED", options["unbalanced"])),
+        format_tokens(("UNBALANCED", options["unbalanced"] + (f' {int(extra_trials)}' if options['unbalanced'] == 'CONTINUE' and extra_trials else ''))),
     ]
     if options.get('default_pattern'):
         lines.append(format_tokens(('PATTERN', options['default_pattern'])))

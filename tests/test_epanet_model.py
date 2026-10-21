@@ -51,6 +51,14 @@ def test_epanet_20_omits_pressure_driven_options():
     assert not any(line.startswith("REQUIRED PRESSURE") for line in lines)
 
 
+def test_unbalanced_extra_iterations_are_serialized_only_for_continue():
+    values = options()
+    values.update(unbalanced='CONTINUE', unbalanced_trials=12)
+    assert 'UNBALANCED    CONTINUE 12' in option_lines(values)
+    values['unbalanced'] = 'STOP'
+    assert 'UNBALANCED    STOP' in option_lines(values)
+
+
 def test_epanet_22_writes_editable_scratch_options_and_six_sections():
     sections = scratch_sections(options())
     assert all(name in sections for name in LAYER_SCHEMAS)

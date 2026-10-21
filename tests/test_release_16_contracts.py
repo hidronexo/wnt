@@ -8,6 +8,43 @@ from wnt.utils.utils_epanet_model import merge_model_sections
 from wnt.utils.utils_epanet_options import analysis_sections, time_hours
 
 
+def test_optional_hydraulics_and_report_selection():
+    result = analysis_sections({'HYDRAULICS_MODE': 1, 'HYDRAULICS_FILE': 'model results.hyd',
+                                'REPORT_NODES': 2, 'REPORT_NODE_IDS': 'J1 R1 T1',
+                                'REPORT_LINKS': 2, 'REPORT_LINK_IDS': 'P1 U1 V1'}, '2.2')
+    assert 'HYDRAULICS SAVE "model results.hyd"' in result['OPTIONS']
+    assert [line for line in result['REPORT'] if line.startswith('NODES')] == ['NODES J1', 'NODES R1', 'NODES T1']
+    assert [line for line in result['REPORT'] if line.startswith('LINKS')] == ['LINKS P1', 'LINKS U1', 'LINKS V1']
+    with pytest.raises(ValueError, match='file reference'):
+        analysis_sections({'HYDRAULICS_MODE': 2}, '2.2')
+    with pytest.raises(ValueError, match='selected report IDs'):
+        analysis_sections({'REPORT_NODES': 2}, '2.2')
+
+
+def test_report_table_validation():
+    from wnt.utils.utils_epanet_options import report_field_lines
+    assert report_field_lines([['PRESSURE', 'YES', '3', '50', '10']]) == [
+        'PRESSURE YES', 'PRESSURE PRECISION 3', 'PRESSURE BELOW 50', 'PRESSURE ABOVE 10']
+    assert report_field_lines(['FLOW', '', '', '', '']) == []
+    for cells in (['NO_FIELD', '', '', '', ''], ['FLOW', 'MAYBE', '', '', ''],
+                  ['FLOW', '', '-1', '', ''], ['FLOW', '', '', 'nan', ''],
+                  ['FLOW', '', '', '1', '2'], ['FLOW']):
+        with pytest.raises(ValueError):
+            report_field_lines(cells)
+
+
+def test_additional_option_widget_dependencies():
+    for name, controller, active, inactive in (
+            ('HYDRAULICS_FILE', 'HYDRAULICS_MODE', 1, 0),
+            ('UNBALANCED_TRIALS', 'UNBALANCED', 1, 0),
+            ('REPORT_NODE_IDS', 'REPORT_NODES', 2, 1),
+            ('REPORT_LINK_IDS', 'REPORT_LINKS', 2, 0)):
+        rules = parameter_rules('network_to_epanet', name, {'epanet_scratch_only': True})
+        assert enabled(rules, {'WORKFLOW': 1, controller: active})
+        assert not enabled(rules, {'WORKFLOW': 1, controller: inactive})
+        assert not enabled(rules, {'WORKFLOW': 0, controller: active})
+
+
 def test_partial_model_update_preserves_other_objects_and_global_settings():
     existing = {
         'JUNCTIONS': ['J1 10 1', 'J2 20 2'], 'RESERVOIRS': ['R1 100'],

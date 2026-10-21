@@ -6,6 +6,9 @@ import re
 
 # key, English label, kind, default, choices/range, section, directive
 OPTION_SPECS = (
+    ('HYDRAULICS_MODE', 'Hydraulics — hydraulic results', 'enum', 0, ('Compute', 'Save', 'Use'), '', ''),
+    ('HYDRAULICS_FILE', 'Hydraulics — hydraulic results file (.hyd)', 'string', '', (), '', ''),
+    ('MAP_FILE', 'Hydraulics — external map file (optional)', 'string', '', (), 'OPTIONS', 'MAP'),
     ('ENERGY_PRICE', 'Energy — price per kWh', 'number', 0, (0, None), 'ENERGY', 'GLOBAL PRICE'),
     ('ENERGY_PATTERN', 'Energy — price pattern', 'string', '', (), 'ENERGY', 'GLOBAL PATTERN'),
     ('PUMP_EFFICIENCY', 'Energy — global pump efficiency (%)', 'number', 75, (0.001, 100), 'ENERGY', 'GLOBAL EFFIC'),
@@ -22,8 +25,9 @@ OPTION_SPECS = (
     ('GLOBAL_WALL', 'Quality — global wall reaction coefficient', 'number', 0, (None, None), 'REACTIONS', 'GLOBAL WALL'),
     ('LIMITING_CONCENTRATION', 'Quality — limiting concentration', 'number', 0, (0, None), 'REACTIONS', 'LIMITING POTENTIAL'),
     ('WALL_CORRELATION', 'Quality — wall coefficient correlation', 'number', 0, (None, None), 'REACTIONS', 'ROUGHNESS CORRELATION'),
-    ('MAXIMUM_HEAD_ERROR', 'Calculation stability — maximum head error', 'number', 0, (0, None), 'OPTIONS', 'HEADERROR'),
-    ('MAXIMUM_FLOW_CHANGE', 'Calculation stability — maximum flow change', 'number', 0, (0, None), 'OPTIONS', 'FLOWCHANGE'),
+    ('MAXIMUM_HEAD_ERROR', 'EPANET 2.2 — maximum head error', 'number', 0, (0, None), 'OPTIONS', 'HEADERROR'),
+    ('MAXIMUM_FLOW_CHANGE', 'EPANET 2.2 — maximum flow change', 'number', 0, (0, None), 'OPTIONS', 'FLOWCHANGE'),
+    ('UNBALANCED_TRIALS', 'Calculation stability — additional trials if unbalanced (0: none)', 'integer', 0, (0, None), '', ''),
     ('CHECK_FREQUENCY', 'Calculation stability — status check frequency', 'integer', 2, (1, None), 'OPTIONS', 'CHECKFREQ'),
     ('MAXIMUM_CHECKS', 'Calculation stability — maximum status checks', 'integer', 10, (0, None), 'OPTIONS', 'MAXCHECK'),
     ('DAMPING_LIMIT', 'Calculation stability — damping limit', 'number', 0, (0, None), 'OPTIONS', 'DAMPLIMIT'),
@@ -42,9 +46,61 @@ OPTION_SPECS = (
     ('REPORT_STATUS', 'Report — status', 'enum', 0, ('NO', 'YES', 'FULL'), 'REPORT', 'STATUS'),
     ('REPORT_SUMMARY', 'Report — summary', 'boolean', True, (), 'REPORT', 'SUMMARY'),
     ('REPORT_ENERGY', 'Report — energy', 'boolean', False, (), 'REPORT', 'ENERGY'),
-    ('REPORT_NODES', 'Report — junctions, reservoirs and tanks', 'enum', 1, ('NONE', 'ALL'), 'REPORT', 'NODES'),
-    ('REPORT_LINKS', 'Report — pipes, pumps and valves', 'enum', 1, ('NONE', 'ALL'), 'REPORT', 'LINKS'),
+    ('REPORT_NODES', 'Report — junctions, reservoirs and tanks', 'enum', 1, ('NONE', 'ALL', 'Selected IDs'), '', ''),
+    ('REPORT_NODE_IDS', 'Report — selected junction, reservoir and tank IDs', 'string', '', (), '', ''),
+    ('REPORT_LINKS', 'Report — pipes, pumps and valves', 'enum', 1, ('NONE', 'ALL', 'Selected IDs'), '', ''),
+    ('REPORT_LINK_IDS', 'Report — selected pipe, pump and valve IDs', 'string', '', (), '', ''),
 )
+
+# EPANET report keywords are stable tokens, not translatable display labels.
+REPORT_FIELDS = ('ELEVATION', 'DEMAND', 'HEAD', 'PRESSURE', 'QUALITY', 'LENGTH',
+                 'DIAMETER', 'FLOW', 'VELOCITY', 'HEADLOSS', 'STATUS', 'SETTING',
+                 'REACTION', 'F-FACTOR')
+
+
+def report_field_lines(matrix):
+    """Validate a five-column report table (field, YES/NO, precision, below, above)."""
+    if not matrix:
+        return []
+    cells = list(matrix)
+    if isinstance(cells[0], (tuple, list)):
+        if any(len(row) != 5 for row in cells):
+            raise ValueError('Report table requires five columns')
+        cells = [value for row in cells for value in row]
+    if len(cells) % 5:
+        raise ValueError('Report table requires five columns')
+    result = []
+    seen = set()
+    for offset in range(0, len(cells), 5):
+        field, display, precision, below, above = [str(v).strip() if v is not None else '' for v in cells[offset:offset + 5]]
+        field = field.upper()
+        if field not in REPORT_FIELDS or field in seen:
+            raise ValueError('Unknown or duplicate report field: ' + field)
+        seen.add(field)
+        if display:
+            if display.upper() not in ('YES', 'NO'):
+                raise ValueError('Report field visibility must be YES or NO')
+            result.append(f'{field} {display.upper()}')
+        if precision:
+            if not precision.isdigit() or not 0 <= int(precision) <= 10:
+                raise ValueError('Report precision must be an integer from 0 to 10')
+            result.append(f'{field} PRECISION {int(precision)}')
+        for keyword, value in (('BELOW', below), ('ABOVE', above)):
+            if value:
+                number = float(value)
+                if not math.isfinite(number):
+                    raise ValueError('Report filter must be finite')
+                result.append(f'{field} {keyword} {number:g}')
+        if below and above and float(above) >= float(below):
+            raise ValueError('Report ABOVE limit must be less than BELOW limit')
+    return result
+
+
+def _filename(value):
+    text = str(value).strip()
+    if not text or any(char in text for char in '\r\n;"'):
+        raise ValueError('Invalid INP file reference')
+    return '"' + text + '"' if any(char.isspace() for char in text) else text
 
 
 def time_hours(value):
@@ -81,6 +137,8 @@ def analysis_sections(values, version):
                 raise ValueError(label + ': must be positive')
         if key == 'START_CLOCKTIME':
             clock = str(value).strip().upper().split()
+            if not clock:
+                raise ValueError('Invalid start clock time')
             hours = time_hours(clock[0])
             if len(clock) > 2 or (len(clock) == 2 and (clock[1] not in ('AM', 'PM') or not 1 <= hours < 13)) or (len(clock) == 1 and hours >= 24):
                 raise ValueError('Invalid start clock time')
@@ -92,8 +150,23 @@ def analysis_sections(values, version):
             continue
         if key == 'QUALITY_TOLERANCE' and options['QUALITY_ANALYSIS'] == 0:
             continue
+        if key in ('REPORT_FILE', 'MAP_FILE') and str(value).strip():
+            value = _filename(value)
         if section and str(value) != '':
             result.setdefault(section, []).append(f'{directive} {value}')
+    if options['HYDRAULICS_MODE']:
+        mode = ('', 'SAVE', 'USE')[options['HYDRAULICS_MODE']]
+        result.setdefault('OPTIONS', []).append(f'HYDRAULICS {mode} {_filename(options["HYDRAULICS_FILE"])}')
+    for kind, key in (('NODES', 'REPORT_NODE_IDS'), ('LINKS', 'REPORT_LINK_IDS')):
+        selection = options['REPORT_' + kind]
+        identifiers = str(options[key]).split()
+        if selection == 2:
+            if not identifiers or any(len(item) > 31 or any(char in item for char in ';"[]') for item in identifiers):
+                raise ValueError('Invalid selected report IDs')
+            # Short lines also work with the fixed line buffer in EPANET 2.0.
+            result.setdefault('REPORT', []).extend(f'{kind} {item}' for item in identifiers)
+        else:
+            result.setdefault('REPORT', []).append(f'{kind} {("NONE", "ALL")[selection]}')
     quality = options['QUALITY_ANALYSIS']
     if quality == 1:
         name = str(options['CHEMICAL_NAME']).strip()

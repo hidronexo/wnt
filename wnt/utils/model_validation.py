@@ -11,6 +11,12 @@ def validate_model(sections):
     ids = {name: {row[0] for row in rows.get(name, [])}
            for name in NODE_SECTIONS + LINK_SECTIONS + ('PATTERNS', 'CURVES')}
     nodes = set().union(*(ids[name] for name in NODE_SECTIONS))
+    links = set().union(*(ids[name] for name in LINK_SECTIONS))
+    for row in rows.get('REPORT', []):
+        if row[0].upper() in ('NODES', 'LINKS') and len(row) > 1 and row[1].upper() not in ('ALL', 'NONE'):
+            allowed = nodes if row[0].upper() == 'NODES' else links
+            if any(identifier not in allowed for identifier in row[1:]):
+                raise ValueError('Undefined report element: ' + ' '.join(row))
 
     def number(value, minimum=None, positive=False):
         result = float(value)

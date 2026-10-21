@@ -168,8 +168,8 @@ EPANET inputs and outputs use JUNCTIONS, RESERVOIRS, TANKS, PIPES, PUMPS and
 VALVES. A pipe check valve is `PIPES.status = CV`; its start/end order is its
 allowed flow direction. CVPIPE is internal/legacy vocabulary, not a seventh layer.
 
-- INP export keeps the six selectors outside advanced options. Emitters, energy,
-  quality/reactions, calculation stability, times and reports use family-labelled
+- INP export keeps the six selectors outside advanced options. Hydraulics, emitters,
+  energy, quality, reactions, calculation stability, EPANET 2.2, times and reports use family-labelled
   advanced options. Disabled controls retain their values. Existing-model mode
   preserves global settings, untouched objects and omitted optional properties.
 - Scratch models can load PATTERNS and CURVES from an INP definitions file.
@@ -195,10 +195,21 @@ allowed flow direction. CVPIPE is internal/legacy vocabulary, not a seventh laye
   and contradictory legacy inputs are rejected. New category outputs use
   OUTPUT_JUNCTIONS, OUTPUT_PIPES, etc.; saved models must reconnect output names.
 
-Field-level REPORT filters/precision and new rule/control editing are not form
-parameters. Existing INP sections are retained; this exporter is not a reversible
+The EPANET 2.2 group contains DDA/PDA, minimum and required pressure, pressure
+exponent, HEADERROR and FLOWCHANGE together; these controls are disabled for 2.0.
+Hydraulic result reuse/save, additional convergence trials, report element IDs,
+and a report-variable table (YES/NO, precision, BELOW/ABOVE limits) are available.
+Blank table cells retain engine defaults. External file references are written
+to the INP; the exporter does not execute them or create hydraulic result files.
+Emitter coefficients, initial quality, sources, tank mixing and individual pump
+energy settings are layer attributes, not fictitious global options.
+New rule/control editing is not a form parameter. Existing INP sections are retained; this exporter is not a reversible
 text editor and does not promise byte-identical comments or whitespace.
-EPANET 2.2 directives follow the [official EPA manual](https://usepa.github.io/EPANET2.2/back_matter.html).
+EPANET 2.2 directives follow the [official EPA INP reference](https://usepa.github.io/EPANET2.2/input_keywords.html)
+and [analysis options](https://usepa.github.io/EPANET2.2/8_analyzing_network.html).
+In QGIS, expand Advanced parameters and select Create EPANET model from scratch
+to edit these options. An installed plugin showing only NODES/LINKS is an older
+copy, even if its metadata says 1.6.0; install the new ZIP and restart QGIS.
 
 Release checks: use Pixi test/lint/typecheck; run QGIS-marked tests with QGIS
 Python. Set WNT_EPANET_LIBRARY to an external toolkit to enable the four native
