@@ -69,6 +69,18 @@ def missing_fields(source, required_fields):
     return [field for field in required_fields if field not in names]
 
 
+def validate_terrain_target(source, field):
+    """Prevent a terrain operation from replacing a reservoir hydraulic head."""
+    if field not in ('head', 'total_head'):
+        return
+    names = field_names(source)
+    reservoir = 'total_head' in names or 'head_pattern' in names
+    if not reservoir and 'type' in names:
+        reservoir = any(str(feature['type']).upper() == 'RESERVOIR' for feature in source.getFeatures())
+    if reservoir:
+        raise QgsProcessingException('Terrain elevation cannot replace reservoir total head; select a terrain elevation field')
+
+
 def crs_is_geographic(crs):
     """Return True when a CRS uses angular/geographic coordinates."""
     if crs is None:
@@ -203,15 +215,21 @@ def _start_edit(layer):
     already_editing = bool(getattr(layer, "isEditable", lambda: False)())
     if not already_editing and not layer.startEditing():
         raise RuntimeError("Could not start editing input layer")
+    if hasattr(layer, 'beginEditCommand'):
+        layer.beginEditCommand('Water Network Tools')
     return already_editing
 
 
 def _finish_edit(layer, already_editing):
+    if hasattr(layer, 'endEditCommand'):
+        layer.endEditCommand()
     if not already_editing and not layer.commitChanges():
         raise RuntimeError("Could not commit edits to input layer")
 
 
 def _rollback_edit(layer, already_editing):
+    if hasattr(layer, 'destroyEditCommand'):
+        layer.destroyEditCommand()
     if not already_editing:
         layer.rollBack()
 
@@ -252,7 +270,11 @@ def update_layer_fields_and_attributes(layer, field_defs, updates_factory, delet
 
 
 def update_multiple_layer_fields_and_attributes(layer_specs):
-    """Add fields and update attributes across layers, rolling all back on failure."""
+    """Apply grouped buffer edits, leaving multi-provider persistence to QGIS.
+
+    Committing unrelated providers sequentially cannot be atomic. Keep all
+    successful edits in their undoable buffers instead of partially saving.
+    """
     started_layers = []
     try:
         for spec in layer_specs:
@@ -275,7 +297,8 @@ def update_multiple_layer_fields_and_attributes(layer_specs):
                         raise RuntimeError("Could not update input layer attributes")
 
         for layer, already_editing in reversed(started_layers):
-            _finish_edit(layer, already_editing)
+            if hasattr(layer, 'endEditCommand'):
+                layer.endEditCommand()
     except Exception:
         for layer, already_editing in reversed(started_layers):
             _rollback_edit(layer, already_editing)
@@ -300,6 +323,24 @@ def replace_layer_features(layer, features):
 class WntProcessingAlgorithm(QgsProcessingAlgorithm):
     """Processing algorithm base class with a shared translation context."""
 
+    def addParameter(self, parameter, createOutput=True):
+        from ..utils.parameter_rules import parameter_rules
+        from .widgets import ConditionalEnumWidgetWrapper, ConditionalSourceWidgetWrapper
+        metadata = parameter.metadata()
+        rules = parameter_rules(self.name(), parameter.name(), metadata)
+        if rules:
+            metadata['wnt_enabled_when'] = rules
+        if parameter.type() == 'enum':
+            metadata['widget_wrapper'] = {'class': ConditionalEnumWidgetWrapper}
+        elif parameter.name() == 'INPUT_FIRE_SCENARIOS':
+            metadata['widget_wrapper'] = {'class': ConditionalSourceWidgetWrapper}
+        elif self.name() in ('network_from_xml', 'network_from_landxml') and parameter.name() in ('NETWORK_NAMES', 'VERSION_ID'):
+            from .widgets import XmlChoiceWidgetWrapper
+            metadata['widget_wrapper'] = {'class': XmlChoiceWidgetWrapper}
+            metadata['landxml_file_parameter'] = 'INPUT'
+        parameter.setMetadata(metadata)
+        return super().addParameter(parameter, createOutput)
+
     def flags(self):
         """Run WNT algorithms on the main thread for safe layer/project edits."""
         flags = super().flags()
@@ -307,6 +348,16 @@ class WntProcessingAlgorithm(QgsProcessingAlgorithm):
         if no_threading is not None:
             flags |= no_threading
         return flags
+
+    def parameterAsSource(self, parameters, name, context):
+        aliases = {'INPUT_JUNCTIONS': 'INPUT_NODES', 'INPUT_PIPES': 'INPUT_LINES'}
+        legacy = aliases.get(name)
+        if legacy and legacy in parameters:
+            if name in parameters and parameters[name] != parameters[legacy]:
+                raise QgsProcessingException('Conflicting current and legacy layer parameters: ' + name)
+            parameters = dict(parameters)
+            parameters[name] = parameters[legacy]
+        return super().parameterAsSource(parameters, name, context)
 
     def parameterAsSink(self, parameters, name, context, *args, **kwargs):
         """Create a required sink or stop with QGIS' standard output error."""

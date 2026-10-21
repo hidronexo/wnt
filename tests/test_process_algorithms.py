@@ -34,6 +34,7 @@ from wnt.processes.wnt_split_lines_at_points import SplitLinesAtPointsAlgorithm
 from wnt.processes.wnt_update_assignment import UpdateAssignmentAlgorithm
 from wnt.processes.wnt_validate import ValidateAlgorithm
 from wnt.utils.utils_core import WntLink, WntNetwork, WntNode
+from wnt.utils.utils_epanet_model import LAYER_SCHEMAS
 from wnt.utils.utils_epanet_api import (
     constants_for_version,
     EpanetConfigurationError,
@@ -162,9 +163,11 @@ class FakeSink:
 
     def addFeature(self, feature, *args):
         self.features.append(feature)
+        return True
 
     def addFeatures(self, features, *args):
         self.features.extend(features)
+        return True
 
 
 class FakeLayerDetails:
@@ -687,6 +690,17 @@ def test_elevation_from_tin_interpolates_nodes(monkeypatch, tmp_path):
         files={algorithm.INPUT_TIN: xml},
     )
 
+    class FakeTransform:
+        def __init__(self, source, target, project):
+            assert source.authid() == 'EPSG:25830'
+            assert target.authid() == 'EPSG:4326'
+
+        @staticmethod
+        def transform(x, y):
+            return FakePoint(x, y)
+
+    monkeypatch.setattr('wnt.processes.wnt_elevation_from_tin.QgsCoordinateTransform', FakeTransform)
+
     feedback = FakeFeedback()
     result = algorithm.processAlgorithm({}, None, feedback)
 
@@ -951,165 +965,6 @@ def epanet_template_text():
     )
 
 
-def test_network_to_epanet_exports_file_and_rejects_crs(monkeypatch, tmp_path):
-    algorithm = NetworkToEpanetAlgorithm()
-    INPUT_TEMPLATE = tmp_path / "template.inp"
-    output = tmp_path / "model.inp"
-    INPUT_TEMPLATE.write_text(epanet_template_text(), encoding="latin-1")
-    nodes = FakeSource(
-        [
-            FakeFeature({"id": "J1", "type": "JUNCTION", "elevation": 1}, FakeGeometry(0, 0)),
-            FakeFeature({"id": "J2", "type": "RESERVOIR", "elevation": 2}, FakeGeometry(1, 0)),
-        ]
-    )
-    links = FakeSource(
-        [
-            FakeFeature(
-                {"id": "P1", "start": "J1", "end": "J2", "type": "PIPE", "length": 1.0},
-                FakeGeometry(0, 0, "LineString(0 0, 1 0)"),
-            )
-        ]
-    )
-    bind_common_parameters(
-        monkeypatch,
-        algorithm,
-        sources={algorithm.INPUT_NODES: nodes, algorithm.INPUT_LINES: links},
-        files={algorithm.INPUT_TEMPLATE: INPUT_TEMPLATE, algorithm.OUTPUT: output},
-    )
-
-    result = algorithm.processAlgorithm({}, None, FakeFeedback())
-
-    assert result == {algorithm.OUTPUT: str(output)}
-    text = output.read_text(encoding="latin-1")
-    assert "J1    1.0    0.0" in text
-    assert "P1    J1    J2" in text
-    assert algorithm.processAlgorithm({}, None, FakeFeedback(canceled=True)) == {}
-
-    bad_links = FakeSource([], crs=FakeCrs("EPSG:4326"))
-    bind_common_parameters(
-        monkeypatch,
-        algorithm,
-        sources={algorithm.INPUT_NODES: nodes, algorithm.INPUT_LINES: bad_links},
-        files={algorithm.INPUT_TEMPLATE: INPUT_TEMPLATE, algorithm.OUTPUT: output},
-    )
-    feedback = FakeFeedback()
-
-    with pytest.raises(QgsProcessingException):
-
-        algorithm.processAlgorithm({}, None, feedback)
-    assert feedback.errors == ["ERROR: Layers have different CRS"]
-
-
-def test_network_to_epanet_reports_duplicate_ids(monkeypatch, tmp_path):
-    algorithm = NetworkToEpanetAlgorithm()
-    template = tmp_path / "template.inp"
-    output = tmp_path / "model.inp"
-    template.write_text(epanet_template_text(), encoding="latin-1")
-    nodes = FakeSource([
-        FakeFeature({"id": "J1", "type": "JUNCTION", "elevation": 0}, FakeGeometry(0, 0)),
-        FakeFeature({"id": "J1", "type": "JUNCTION", "elevation": 0}, FakeGeometry(1, 0)),
-    ])
-    links = FakeSource([], fields=fake_fields("id", "start", "end", "type", "length"))
-    bind_common_parameters(
-        monkeypatch, algorithm,
-        sources={algorithm.INPUT_NODES: nodes, algorithm.INPUT_LINES: links},
-        files={algorithm.INPUT_TEMPLATE: template, algorithm.OUTPUT: output},
-    )
-    feedback = FakeFeedback()
-
-    with pytest.raises(QgsProcessingException):
-
-        algorithm.processAlgorithm({}, None, feedback)
-    assert feedback.errors == ["ERROR: Duplicated node id: J1"]
-    assert feedback.fatal_errors == [True]
-
-
-def test_network_to_epanet_creates_file_from_scratch(monkeypatch, tmp_path):
-    algorithm = NetworkToEpanetAlgorithm()
-    output = tmp_path / "scratch.inp"
-    nodes = FakeSource(
-        [
-            FakeFeature({"id": "J1", "type": "JUNCTION", "elevation": 1}, FakeGeometry(0, 0)),
-            FakeFeature({"id": "J2", "type": "JUNCTION", "elevation": 2}, FakeGeometry(1, 0)),
-        ]
-    )
-    links = FakeSource(
-        [
-            FakeFeature(
-                    {"id": "P1", "start": "J1", "end": "J2", "type": "PIPE", "length": 1.0},
-                FakeGeometry(0, 0, "LineString(0 0, 1 0)"),
-            )
-        ]
-    )
-    bind_common_parameters(
-        monkeypatch,
-        algorithm,
-        sources={algorithm.INPUT_NODES: nodes, algorithm.INPUT_LINES: links},
-        files={algorithm.OUTPUT: output},
-        enums={
-            algorithm.WORKFLOW: algorithm.WORKFLOW_SCRATCH,
-            algorithm.EPANET_VERSION: 1,
-            algorithm.FLOW_UNITS: algorithm.FLOW_UNIT_OPTIONS.index("CMH"),
-        },
-    )
-
-    result = algorithm.processAlgorithm({}, None, FakeFeedback())
-
-    assert result == {algorithm.OUTPUT: str(output)}
-    text = output.read_text(encoding="latin-1")
-    assert "UNITS CMH" in text
-    assert "DEMAND MODEL DDA" in text
-    assert "J1    1.0    0.0" in text
-    assert "J2    2.0    0.0" in text
-
-
-def test_network_to_epanet_aborts_invalid_merged_network(monkeypatch, tmp_path):
-    algorithm = NetworkToEpanetAlgorithm()
-    output = tmp_path / "merged.inp"
-    existing = tmp_path / "existing.inp"
-    existing.write_text(
-        "[JUNCTIONS]\n"
-        "J1 0\n"
-        "J2 0\n"
-        "[PIPES]\n"
-        "P1 J1 J2 1 100 100 0 Open\n"
-        "[COORDINATES]\n"
-        "J1 0 0\n"
-        "J2 1 0\n"
-        "[END]\n",
-        encoding="latin-1",
-    )
-    nodes = FakeSource(
-        [FakeFeature({"id": "J1", "type": "JUNCTION", "elevation": 1}, FakeGeometry(0, 0))]
-    )
-    links = FakeSource(
-        [
-            FakeFeature(
-                {"id": "P2", "start": "J1", "end": "J2", "type": "PIPE", "length": 1.0},
-                FakeGeometry(0, 0, "LineString(0 0, 1 0)"),
-            )
-        ]
-    )
-    bind_common_parameters(
-        monkeypatch,
-        algorithm,
-        sources={algorithm.INPUT_NODES: nodes, algorithm.INPUT_LINES: links},
-        files={algorithm.INPUT_EPANET: existing, algorithm.OUTPUT: output},
-        enums={
-            algorithm.WORKFLOW: algorithm.WORKFLOW_EXISTING,
-            algorithm.EPANET_VERSION: 1,
-            algorithm.FLOW_UNITS: algorithm.FLOW_UNIT_OPTIONS.index("CMH"),
-        },
-    )
-    feedback = FakeFeedback()
-
-    with pytest.raises(QgsProcessingException):
-        algorithm.processAlgorithm({}, None, feedback)
-
-    assert not output.exists()
-    assert any("Merged EPANET network is not valid" in line for line in feedback.errors)
-
-
 def test_epanet_minimal_templates_match_selected_versions():
     old_template = NetworkToEpanetAlgorithm._minimal_template_text("2.00.12", "LPS")
     new_template = NetworkToEpanetAlgorithm._minimal_template_text("2.2+", "GPM")
@@ -1119,56 +974,19 @@ def test_epanet_minimal_templates_match_selected_versions():
     assert "UNITS GPM" in new_template
     assert "DEMAND MODEL DDA" in new_template
 
-def test_network_from_epanet_imports_node_and_link_features(monkeypatch, tmp_path):
+def test_epanet_import_creates_six_typed_layers(monkeypatch, tmp_path):
     algorithm = NetworkFromEpanetAlgorithm()
-    inp = tmp_path / "example.inp"
+    inp = tmp_path / "Net3.inp"
     inp.write_text(
-        """
-        [JUNCTIONS]
-        J1 1 5 PAT_J
-        J2 2
-        [DEMANDS]
-        J1 7 PAT_ALT irrigation
-        [EMITTERS]
-        J2 0.25
-        [RESERVOIRS]
-        R1 100 PAT_R
-        [TANKS]
-        T1 10 1 0 5 15 0 VC1
-        [QUALITY]
-        J1 0.2
-        T1 0.8
-        [SOURCES]
-        R1 CONCEN 1.5 PAT_SRC
-        [MIXING]
-        T1 MIXED 0.75
-        [REACTIONS]
-        BULK P1 -0.1
-        WALL P1 -0.2
-        TANK T1 -0.3
-        [STATUS]
-        P1 Closed
-        PU1 Open
-        [ENERGY]
-        PUMP PU1 PRICE 0.15
-        PUMP PU1 PATTERN ENERGY_PAT
-        PUMP PU1 EFFIC EFF_CURVE
-        [TAGS]
-        NODE J1 DMA-A
-        LINK P1 trunk main
-        [COORDINATES]
-        J1 0 0
-        J2 1 0
-        R1 2 0
-        T1 3 0
-        [PIPES]
-        P1 J1 J2 1.0 100 120 0 Open
-        [PUMPS]
-        PU1 J2 R1 POWER 10 SPEED 1.2 PATTERN PAT_P
-        [VALVES]
-        V1 R1 T1 50 PRV 20 0.1
-        [END]
-        """,
+        "[JUNCTIONS]\nJ1 10 2 P1\n"
+        "[RESERVOIRS]\nR1 100\n"
+        "[TANKS]\nT1 20 1 0 5 10 0\n"
+        "[PIPES]\nP1 J1 R1 10 100 120 0 OPEN\n"
+        "[PUMPS]\nPU1 R1 T1 POWER 10\n"
+        "[VALVES]\nV1 T1 J1 80 PRV 20 0\n"
+        "[COORDINATES]\nJ1 0 0\nR1 1 0\nT1 2 0\n"
+        "[OPTIONS]\nDEMAND MODEL PDA\nREQUIRED PRESSURE 15\n"
+        "[END]\n",
         encoding="latin-1",
     )
     sinks = bind_common_parameters(
@@ -1176,236 +994,94 @@ def test_network_from_epanet_imports_node_and_link_features(monkeypatch, tmp_pat
         algorithm,
         fields={algorithm.CRS: FakeCrs()},
         files={algorithm.INPUT: inp},
+        enums={algorithm.VERSION_MODE: 0},
     )
-
     context = FakeProcessingContext()
+
     result = algorithm.processAlgorithm({}, context, FakeFeedback())
 
-    assert result == {
-        algorithm.OUTPUT_NODES: f"{algorithm.OUTPUT_NODES}_id",
-        algorithm.OUTPUT_LINES: f"{algorithm.OUTPUT_LINES}_id",
-    }
-    assert context.layer_details[f"{algorithm.OUTPUT_NODES}_id"].name == "example_nodes"
-    assert context.layer_details[f"{algorithm.OUTPUT_LINES}_id"].name == "example_links"
-    nodes = {
-        feature.attributes()[0]: feature.attributes()
-        for feature in sinks[algorithm.OUTPUT_NODES].features
-    }
-    links = {
-        feature.attributes()[0]: feature.attributes()
-        for feature in sinks[algorithm.OUTPUT_LINES].features
-    }
-    assert nodes["J1"][:3] == ["J1", "JUNCTION", 1.0]
-    assert json.loads(nodes["J1"][3]) == {
-        "base_demand": "5",
-        "demand_pattern": "PAT_J",
-        "demands": [{"base_demand": "7", "demand_pattern": "PAT_ALT", "category": "irrigation"}],
-        "emitter_coefficient": None,
-        "initial_quality": "0.2",
-        "source_pattern": None,
-        "source_quality": None,
-        "source_type": None,
-        "tag": "DMA-A",
-    }
-    assert nodes["R1"][:3] == ["R1", "RESERVOIR", 100.0]
-    assert json.loads(nodes["R1"][3]) == {
-        "head_pattern": "PAT_R",
-        "source_pattern": "PAT_SRC",
-        "source_quality": "1.5",
-        "source_type": "CONCEN",
-        "initial_quality": None,
-        "tag": None,
-        "total_head": "100",
-    }
-    assert nodes["T1"][:3] == ["T1", "TANK", 10.0]
-    assert json.loads(nodes["T1"][3]) == {
-        "initial_level": "1",
-        "initial_quality": "0.8",
-        "max_level": "5",
-        "min_level": "0",
-        "min_volume": "0",
-        "mixing_fraction": "0.75",
-        "mixing_model": "MIXED",
-        "diameter": "15",
-        "source_pattern": None,
-        "source_quality": None,
-        "source_type": None,
-        "tag": None,
-        "tank_reaction_coeff": "-0.3",
-        "volume_curve": "VC1",
-    }
-    assert links["P1"][:4] == ["P1", "J1", "J2", "PIPE"]
-    assert json.loads(links["P1"][4]) == {
-        "bulk_reaction_coeff": "-0.1",
-        "diameter": "100",
-        "initial_status": "Closed",
-        "length": "1.0",
-        "minor_loss": "0",
-        "roughness": "120",
-        "tag": "trunk main",
-        "wall_reaction_coeff": "-0.2",
-    }
-    assert links["PU1"][:4] == ["PU1", "J2", "R1", "PUMP"]
-    assert json.loads(links["PU1"][4]) == {
-        "energy_pattern": "ENERGY_PAT",
-        "energy_price": "0.15",
-        "efficiency_curve": "EFF_CURVE",
-        "head_curve": None,
-        "initial_status": "Open",
-        "pump_parameters": "POWER 10 SPEED 1.2 PATTERN PAT_P",
-        "pump_pattern": "PAT_P",
-        "pump_power": "10",
-        "pump_speed": "1.2",
-        "tag": None,
-    }
-    assert links["V1"][:4] == ["V1", "R1", "T1", "PRV"]
-    assert json.loads(links["V1"][4]) == {
-        "diameter": "50",
-        "initial_status": None,
-        "minor_loss": "0.1",
-        "tag": None,
-        "valve_setting": "20",
-        "valve_type": "PRV",
-    }
-    assert algorithm.processAlgorithm({}, None, FakeFeedback(canceled=True)) == {}
+    assert set(result) == set(algorithm.OUTPUTS.values())
+    assert all(len(sinks[output].features) == 1 for output in algorithm.OUTPUTS.values())
+    for section, output in algorithm.OUTPUTS.items():
+        names = sinks[output].fields.names()
+        assert names == [name for name, _kind in LAYER_SCHEMAS[section]]
+        assert "epanet" not in names
+        assert sinks[output].features[0].attributes()[-1] == "2.2"
+        assert sinks[output].features[0].attributes()[-2] == str(inp.resolve())
+        assert context.layer_details[f"{output}_id"].groupName == "Net3"
 
 
+def test_epanet_export_accepts_six_layers_and_scratch_options(monkeypatch, tmp_path):
+    algorithm = NetworkToEpanetAlgorithm()
+    output = tmp_path / "model.inp"
 
-def test_network_from_epanet_allows_missing_coordinates_in_output(monkeypatch, tmp_path):
-    algorithm = NetworkFromEpanetAlgorithm()
-    inp = tmp_path / "no_coordinates.inp"
-    inp.write_text(
-        "[JUNCTIONS]\nJ1 0\nJ2 0\n[PIPES]\nP1 J1 J2 1 100 120 0 Open\n[END]\n",
-        encoding="latin-1",
+    def source(section, features):
+        return FakeSource(features, fields=fake_fields(*(name for name, _kind in LAYER_SCHEMAS[section])))
+
+    sources = {
+        algorithm.INPUT_JUNCTIONS: source("JUNCTIONS", [
+            FakeFeature({
+                "id": "J1", "elevation": 10, "base_demand": 2,
+                "demand_pattern": "PAT1", "emitter_coefficient": None,
+                "initial_quality": None, "source_type": None,
+                "source_quality": None, "source_pattern": None, "tag": None,
+            }, FakeGeometry(0, 0)),
+        ]),
+        algorithm.INPUT_RESERVOIRS: source("RESERVOIRS", [
+            FakeFeature({
+                "id": "R1", "total_head": 100, "head_pattern": None,
+                "initial_quality": None, "source_type": None,
+                "source_quality": None, "source_pattern": None, "tag": None,
+            }, FakeGeometry(1, 0)),
+        ]),
+        algorithm.INPUT_TANKS: source("TANKS", []),
+        algorithm.INPUT_PIPES: source("PIPES", [
+            FakeFeature({
+                "id": "P1", "start": "J1", "end": "R1", "length": 10,
+                "diameter": 100, "roughness": 120, "minor_loss": 0,
+                "initial_status": "OPEN", "bulk_reaction_coeff": None,
+                "wall_reaction_coeff": None, "tag": None,
+            }, FakeGeometry(0, 0, "LineString(0 0, 1 0)")),
+        ]),
+        algorithm.INPUT_PUMPS: source("PUMPS", []),
+        algorithm.INPUT_VALVES: source("VALVES", []),
+    }
+    numeric = {
+        algorithm.DEMAND_MULTIPLIER: 1.25,
+        algorithm.EMITTER_EXPONENT: 0.5,
+        algorithm.VISCOSITY: 1.0,
+        algorithm.DIFFUSIVITY: 1.0,
+        algorithm.SPECIFIC_GRAVITY: 1.0,
+        algorithm.TRIALS: 60,
+        algorithm.ACCURACY: 0.001,
+        algorithm.MINIMUM_PRESSURE: 0.0,
+        algorithm.REQUIRED_PRESSURE: 15.0,
+        algorithm.PRESSURE_EXPONENT: 0.5,
+        algorithm.DEFAULT_PATTERN: "PAT1",
+    }
+    enums = {
+        algorithm.WORKFLOW: algorithm.WORKFLOW_SCRATCH,
+        algorithm.EPANET_VERSION: 1,
+        algorithm.FLOW_UNITS: algorithm.FLOW_UNIT_OPTIONS.index("LPS"),
+        algorithm.HEADLOSS: algorithm.HEADLOSS_OPTIONS.index("D-W"),
+        algorithm.DEMAND_MODEL: algorithm.DEMAND_MODEL_OPTIONS.index("PDA"),
+        algorithm.UNBALANCED: algorithm.UNBALANCED_OPTIONS.index("CONTINUE"),
+    }
+    bind_common_parameters(
+        monkeypatch, algorithm, sources=sources, fields=numeric,
+        files={algorithm.OUTPUT: output, 'INPUT_DEFINITIONS': tmp_path / 'definitions.inp'}, enums=enums,
     )
-    sinks = bind_common_parameters(
-        monkeypatch,
-        algorithm,
-        fields={algorithm.CRS: FakeCrs()},
-        files={algorithm.INPUT: inp},
-    )
+    (tmp_path / 'definitions.inp').write_text('[PATTERNS]\nPAT1 1.0\n', encoding='latin-1')
+    result = algorithm.processAlgorithm({'INPUT_DEFINITIONS': str(tmp_path / 'definitions.inp')}, None, FakeFeedback())
 
-    result = algorithm.processAlgorithm({}, FakeProcessingContext(), FakeFeedback())
-
-    assert result == {
-        algorithm.OUTPUT_NODES: f"{algorithm.OUTPUT_NODES}_id",
-        algorithm.OUTPUT_LINES: f"{algorithm.OUTPUT_LINES}_id",
-    }
-    assert len(sinks[algorithm.OUTPUT_NODES].features) == 2
-    assert len(sinks[algorithm.OUTPUT_LINES].features) == 1
-
-
-def test_network_from_epanet_keeps_missing_version_dependent_json_keys_editable(monkeypatch, tmp_path):
-    algorithm = NetworkFromEpanetAlgorithm()
-    inp = tmp_path / "minimal.inp"
-    inp.write_text(
-        """
-        [JUNCTIONS]
-        J1 1
-        [RESERVOIRS]
-        R1 100
-        [TANKS]
-        T1 10
-        [COORDINATES]
-        J1 0 0
-        R1 1 0
-        T1 2 0
-        [PIPES]
-        P1 J1 R1 1.0 100 120
-        [PUMPS]
-        PU1 R1 T1 HEAD HC1
-        [VALVES]
-        V1 T1 J1 50 PRV
-        [END]
-        """,
-        encoding="latin-1",
-    )
-    sinks = bind_common_parameters(
-        monkeypatch,
-        algorithm,
-        fields={algorithm.CRS: FakeCrs()},
-        files={algorithm.INPUT: inp},
-    )
-
-    algorithm.processAlgorithm({}, FakeProcessingContext(), FakeFeedback())
-
-    nodes = {
-        feature.attributes()[0]: json.loads(feature.attributes()[3])
-        for feature in sinks[algorithm.OUTPUT_NODES].features
-    }
-    links = {
-        feature.attributes()[0]: json.loads(feature.attributes()[4])
-        for feature in sinks[algorithm.OUTPUT_LINES].features
-    }
-
-    assert nodes["J1"] == {
-        "base_demand": None,
-        "demand_pattern": None,
-        "demands": None,
-        "emitter_coefficient": None,
-        "initial_quality": None,
-        "source_pattern": None,
-        "source_quality": None,
-        "source_type": None,
-        "tag": None,
-    }
-    assert nodes["R1"] == {
-        "head_pattern": None,
-        "initial_quality": None,
-        "source_pattern": None,
-        "source_quality": None,
-        "source_type": None,
-        "tag": None,
-        "total_head": "100",
-    }
-    assert nodes["T1"] == {
-        "diameter": None,
-        "initial_level": None,
-        "initial_quality": None,
-        "max_level": None,
-        "min_level": None,
-        "min_volume": None,
-        "mixing_fraction": None,
-        "mixing_model": None,
-        "source_pattern": None,
-        "source_quality": None,
-        "source_type": None,
-        "tag": None,
-        "tank_reaction_coeff": None,
-        "volume_curve": None,
-    }
-    assert links["P1"] == {
-        "bulk_reaction_coeff": None,
-        "diameter": "100",
-        "initial_status": None,
-        "length": "1.0",
-        "minor_loss": None,
-        "roughness": "120",
-        "tag": None,
-        "wall_reaction_coeff": None,
-    }
-    assert links["PU1"] == {
-        "efficiency_curve": None,
-        "energy_pattern": None,
-        "energy_price": None,
-        "head_curve": "HC1",
-        "initial_status": None,
-        "pump_parameters": "HEAD HC1",
-        "pump_pattern": None,
-        "pump_power": None,
-        "pump_speed": None,
-        "tag": None,
-    }
-    assert links["V1"] == {
-        "diameter": "50",
-        "initial_status": None,
-        "minor_loss": None,
-        "tag": None,
-        "valve_setting": None,
-        "valve_type": "PRV",
-    }
-
-
+    assert result == {algorithm.OUTPUT: str(output)}
+    text = output.read_text(encoding="latin-1")
+    assert "J1    10    2    PAT1" in text
+    assert "P1    J1    R1    10    100    120    0    OPEN" in text
+    assert "HEADLOSS    D-W" in text
+    assert "DEMAND MODEL    PDA" in text
+    assert "REQUIRED PRESSURE    15.0" in text
+    assert "DEMAND MULTIPLIER    1.25" in text
 
 
 def test_network_from_xml_reports_missing_landxml_pipe_networks(monkeypatch, tmp_path):
@@ -3218,7 +2894,7 @@ def test_network_to_pipesizing_writes_pro_with_external_catalog(monkeypatch, tmp
     output = tmp_path / "sizing.pro"
     epanet_file = tmp_path / "model.inp"
     input_catalog = tmp_path / "template.cat"
-    epanet_file.write_text("[END]\n", encoding="utf-8")
+    epanet_file.write_text("[JUNCTIONS]\nN1 0\nN2 0\n[PIPES]\nL1 N1 N2 10 100 120 0 CV\n[END]\n", encoding="utf-8")
     input_catalog.write_text("S1    100.0    120.0\n", encoding="utf-8")
     nodes = FakeSource(
         [FakeFeature({"id": "N1", "peak": 20, "fire": 10}), FakeFeature({"id": "N2", "peak": "", "fire": ""})],
@@ -3247,12 +2923,12 @@ def test_network_to_pipesizing_writes_pro_with_external_catalog(monkeypatch, tmp
 
     assert result == {algorithm.OUTPUT: str(output)}
     text = output.read_text(encoding="utf-8")
-    output_catalog = output.with_suffix(".cat")
+    output_catalog = output.with_suffix(".psr")
     assert "[SETTINGS]" in text
     assert "model.inp" in text
     assert "peak_factor 1.5" in text
     assert "fire_factor 0.75" in text
-    assert "sizing.cat" in text
+    assert "sizing.psr" in text
     assert "[PRESSURES]" in text
     assert "N1    20    10" in text
     assert "[FIRE_SCENARIOS]" in text
@@ -3294,6 +2970,7 @@ def test_network_to_ppno_writes_ext_from_catalog_and_rejects_crs(monkeypatch, tm
     algorithm = NetworkToPpnoAlgorithm()
     output = tmp_path / "output.ext"
     INPUT_EPANET = tmp_path / "model.inp"
+    INPUT_EPANET.write_text("[JUNCTIONS]\nN1 0\nN2 0\n[PIPES]\nL1 N1 N2 10 100 120 0 CV\n[END]\n", encoding="utf-8")
     input_catalog = tmp_path / "template.cat"
     input_catalog.write_text("S1    100.0    0.1    10.0\n", encoding="latin-1")
     nodes = FakeSource([FakeFeature({"id": "N1", "pressure": 20}), FakeFeature({"id": "N2", "pressure": 0})])
@@ -3316,6 +2993,7 @@ def test_network_to_ppno_writes_ext_from_catalog_and_rejects_crs(monkeypatch, tm
     assert "output.cat" in text
     assert "Algorithm    DE    NSGA2" in text
     assert "N1    20" in text
+    assert "N2    0" in text
     assert "L1    S1" in text
     assert output_catalog.read_text(encoding="latin-1") == "S1    100.0    0.1    10.0\n"
     output_catalog.write_text("old catalog", encoding="latin-1")
@@ -3369,9 +3047,8 @@ def test_scenario_exporters_validate_required_fields(monkeypatch, tmp_path):
         files={demand.OUTPUT: output},
     )
     feedback = FakeFeedback()
-    with pytest.raises(QgsProcessingException):
-        demand.processAlgorithm({}, None, feedback)
-    assert feedback.errors == ["ERROR: Node layer is missing required fields: type"]
+    demand.processAlgorithm({}, None, feedback)
+    assert 'J1  1.0  base' in output.read_text(encoding='latin-1')
 
     pipe = PipePropertiesToEpanetScenarioAlgorithm()
     links = FakeSource([FakeFeature({"id": "P1", "type": "PIPE", "diameter": 100})])

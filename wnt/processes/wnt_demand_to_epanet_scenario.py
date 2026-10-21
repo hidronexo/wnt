@@ -1,10 +1,14 @@
 """Export an EPANET demand scenario file."""
 
+import io
+import math
+from ..utils.export_files import publish_files
+
 from qgis.core import (QgsProcessing,
                        QgsProcessingParameterFeatureSource,
                        QgsProcessingParameterField,
                        QgsProcessingParameterFileDestination)
-from .base import WntProcessingAlgorithm, missing_fields
+from .base import WntProcessingAlgorithm, missing_fields, field_names
 from .messages import error, finish, info, start
 
 class DemandToEpanetScenarioAlgorithm(WntProcessingAlgorithm):
@@ -13,7 +17,8 @@ class DemandToEpanetScenarioAlgorithm(WntProcessingAlgorithm):
     """
 
     # DEFINE CONSTANTS
-    INPUT_NODES = 'INPUT_NODES'
+    INPUT_JUNCTIONS = 'INPUT_JUNCTIONS'
+    INPUT_NODES = INPUT_JUNCTIONS
     FIELD_DEMAND = 'FIELD_DEMAND'
     OUTPUT = 'OUTPUT'
 
@@ -69,7 +74,7 @@ class DemandToEpanetScenarioAlgorithm(WntProcessingAlgorithm):
         self.addParameter(
             QgsProcessingParameterFeatureSource(
                 self.INPUT_NODES,
-                self.tr('Input node layer'),
+                self.tr('Junctions layer'),
                 [QgsProcessing.TypeVectorPoint]
                 )
             )
@@ -103,7 +108,7 @@ class DemandToEpanetScenarioAlgorithm(WntProcessingAlgorithm):
         # IF NO FIELD WAS SELECTED RETURN {}
         if not defields:
             error(feedback, "Field containing demand is required")
-        missing = missing_fields(nodes, ['id', 'type', *defields])
+        missing = missing_fields(nodes, ['id', *defields])
         if missing:
             error(feedback, "Node layer is missing required fields: " + ", ".join(missing))
 
@@ -111,7 +116,7 @@ class DemandToEpanetScenarioAlgorithm(WntProcessingAlgorithm):
         cnt = 0
         scnfn = self.parameterAsFileOutput(parameters, self.OUTPUT, context)
         try:
-            with open(scnfn, 'w', encoding='latin-1') as file:
+            with io.StringIO() as file:
                 file.write('; File generated automatically by Water Network Tools \n')
                 file.write('[DEMANDS] \n')
                 file.write(';Node    Demand    Pattern \n')
@@ -120,11 +125,16 @@ class DemandToEpanetScenarioAlgorithm(WntProcessingAlgorithm):
                 for f in nodes.getFeatures():
                     for field in defields:
                         value = f[field]
-                        node_type = str(f['type'] or '').upper()
+                        node_type = str(f['type'] or '').upper() if 'type' in field_names(nodes) else 'JUNCTION'
                         if value not in (None, '') and node_type == 'JUNCTION':
+                            if not math.isfinite(float(value)):
+                                error(feedback, 'Demand must be finite: ' + str(f['id']))
                             cnt += 1
                             line = '{}  {}  {} \n'.format(f['id'], value, field)
                             file.write(line)
+                if feedback.isCanceled():
+                    return {}
+                publish_files({scnfn: file.getvalue().encode('latin-1')})
         except UnicodeEncodeError as exc:
             error(feedback, "Output contains characters that cannot be written: " + str(exc))
 

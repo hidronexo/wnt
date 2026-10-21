@@ -8,21 +8,43 @@ from qgis.core import (QgsFeature,
                        QgsSpatialIndex)
 
 ACCEPTABLE_DEVIATION = 1E-5
-NS = '{http://www.landxml.org/schema/LandXML-1.2}'
+DEGENERATE_DETERMINANT_TOLERANCE = 1E-12
+LANDXML_NAMESPACES = {
+    'http://www.landxml.org/schema/LandXML-1.0',
+    'http://www.landxml.org/schema/LandXML-1.1',
+    'http://www.landxml.org/schema/LandXML-1.2',
+}
 VERTICES_PER_FACE = 3
 
 
-def xmlname(name):
-    return NS + name
+def _local_name(tag):
+    return tag.rsplit('}', 1)[-1]
+
+
+def _landxml_namespace(root):
+    """Return and validate the namespace declared by a LandXML root."""
+    if _local_name(root.tag) != 'LandXML':
+        raise ValueError('Invalid LandXML file: expected LandXML root.')
+    if not root.tag.startswith('{'):
+        return ''
+    namespace = root.tag[1:].split('}', 1)[0]
+    if namespace not in LANDXML_NAMESPACES:
+        raise ValueError(f'Unsupported LandXML namespace: {namespace}')
+    return namespace
+
+
+def xmlname(namespace, name):
+    return f'{{{namespace}}}{name}' if namespace else name
 
 
 def surface_names(file):
     """Return LandXML TIN surface names in file order."""
     tree = safe_xml_parse(file)
     root = tree.getroot()
+    namespace = _landxml_namespace(root)
     names = []
-    for surface in root.iter(xmlname('Surface')):
-        definition = surface.find(xmlname('Definition'))
+    for surface in root.iter(xmlname(namespace, 'Surface')):
+        definition = surface.find(xmlname(namespace, 'Definition'))
         if definition is None or definition.attrib.get('surfType') != 'TIN':
             continue
         names.append(surface.attrib.get('name', ''))
@@ -37,10 +59,11 @@ class Triangle:
 
     def xy_area(self):
         '''Calculate the XY area.'''
-        a = self.v1[0]*(self.v2[1]-self.v3[1])
-        a += self.v2[0]*(self.v3[1]-self.v1[1])
-        a += self.v3[0]*(self.v1[1]-self.v2[1])
-        return abs(a)/2
+        ax = self.v2[0] - self.v1[0]
+        ay = self.v2[1] - self.v1[1]
+        bx = self.v3[0] - self.v1[0]
+        by = self.v3[1] - self.v1[1]
+        return abs(ax*by - ay*bx)/2
 
     def bounding_box(self):
         '''Return the XY bounding box.'''
@@ -48,9 +71,9 @@ class Triangle:
         ys = (self.v1[1], self.v2[1], self.v3[1])
         return QgsRectangle(min(xs), min(ys), max(xs), max(ys))
 
-    def is_degenerate(self, tol=ACCEPTABLE_DEVIATION):
+    def is_degenerate(self, tol=DEGENERATE_DETERMINANT_TOLERANCE):
         '''Check if the triangle has usable XY area.'''
-        return self.xy_area() <= tol
+        return self.xy_area() <= tol/2
 
     def is_inside(self, point, tol=ACCEPTABLE_DEVIATION):
         '''Check if the point (x, y) is inside.'''
@@ -72,7 +95,7 @@ class Triangle:
         e = self.v2[2] - self.v1[2]
         f = self.v3[2] - self.v1[2]
         det = a*d - b*c
-        if abs(det) <= ACCEPTABLE_DEVIATION:
+        if abs(det) <= DEGENERATE_DETERMINANT_TOLERANCE:
             raise ValueError('Cannot interpolate elevation from a degenerate triangle.')
         jx = (d*e - b*f)/det
         jy = (-c*e + a*f)/det
@@ -102,7 +125,8 @@ class TIN:
         '''
         tree = safe_xml_parse(file)
         root = tree.getroot()
-        coordinate_system = root.find(xmlname('CoordinateSystem'))
+        namespace = _landxml_namespace(root)
+        coordinate_system = root.find(xmlname(namespace, 'CoordinateSystem'))
         crs_authid = ''
         crs_wkt = ''
         if coordinate_system is not None:
@@ -110,14 +134,17 @@ class TIN:
             if crs_authid.isdigit():
                 crs_authid = f"EPSG:{crs_authid}"
             crs_wkt = str(coordinate_system.attrib.get('ogcWktCode') or '').strip()
-        for surface in root.iter(xmlname('Surface')):
-            definition = surface.find(xmlname('Definition'))
+        available_surfaces = []
+        for surface in root.iter(xmlname(namespace, 'Surface')):
+            surface_name = surface.attrib.get('name', '')
+            available_surfaces.append(surface_name)
+            definition = surface.find(xmlname(namespace, 'Definition'))
             if definition is None or definition.attrib.get('surfType') != 'TIN':
                 continue
-            if surfname != '' and surfname != surface.attrib['name']:
+            if surfname != '' and surfname != surface_name:
                 continue
-            points = definition.find(xmlname('Pnts'))
-            faces = definition.find(xmlname('Faces'))
+            points = definition.find(xmlname(namespace, 'Pnts'))
+            faces = definition.find(xmlname(namespace, 'Faces'))
             if points is None or faces is None:
                 continue
 
@@ -157,7 +184,12 @@ class TIN:
             self.crs_wkt = crs_wkt
             break
         else:
-            raise ValueError('Requested TIN surface was not found.')
+            available = ', '.join(name or '<unnamed>' for name in available_surfaces)
+            if available:
+                raise ValueError(
+                    f'Requested TIN surface was not found. Available surfaces: {available}'
+                )
+            raise ValueError('Requested TIN surface was not found. No surfaces were found.')
 
     def elevations(self, points):
         '''Return elevations [z1,..] from points [(x1, y1)..].

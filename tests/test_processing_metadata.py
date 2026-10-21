@@ -4,7 +4,8 @@ import pytest
 
 pytest.importorskip("qgis")
 
-from qgis.core import QgsUnitTypes
+from qgis.core import QgsProcessingParameterDefinition, QgsUnitTypes
+from processing.gui.AlgorithmDialog import AlgorithmDialog
 
 from wnt.wnt_provider import WaterNetworkToolsProvider
 
@@ -134,7 +135,7 @@ def test_export_group_starts_with_epanet_exports():
     ]
 
     assert export_names[:3] == [
-        "Network to epanet file (.inp)",
+        "Export EPANET model to INP file",
         "Demand to epanet scenario file (.scn)",
         "Pipe properties to EPANET scenario file (.scn)",
     ]
@@ -193,6 +194,80 @@ def test_network_to_epanet_exposes_workflow_controls():
         "EPANET version"
     )
     assert algorithm.parameterDefinition(algorithm.FLOW_UNITS).description() == "Flow units"
+    names = [parameter.name() for parameter in algorithm.parameterDefinitions()]
+    assert names[:2] == [algorithm.WORKFLOW, algorithm.INPUT_EPANET]
+    assert algorithm.parameterDefinition(algorithm.INPUT_EPANET).metadata()[
+        "epanet_existing_only"
+    ] is True
+    for name in (
+        algorithm.EPANET_VERSION,
+        algorithm.FLOW_UNITS,
+        algorithm.HEADLOSS,
+        algorithm.DEMAND_MODEL,
+        algorithm.DEFAULT_PATTERN,
+        algorithm.DEMAND_MULTIPLIER,
+        algorithm.PRESSURE_EXPONENT,
+    ):
+        assert algorithm.parameterDefinition(name).metadata()["epanet_scratch_only"] is True
+    for name in (
+        algorithm.DEMAND_MODEL,
+        algorithm.DEFAULT_PATTERN,
+        algorithm.DEMAND_MULTIPLIER,
+        algorithm.PRESSURE_EXPONENT,
+    ):
+        assert (
+            algorithm.parameterDefinition(name).flags()
+            & QgsProcessingParameterDefinition.FlagAdvanced
+        )
+
+
+def test_network_to_epanet_workflow_enables_only_relevant_parameters():
+    provider = WaterNetworkToolsProvider()
+    provider.loadAlgorithms()
+    algorithm = next(
+        algorithm for algorithm in provider.algorithms()
+        if algorithm.name() == "network_to_epanet"
+    ).createInstance()
+    algorithm.initAlgorithm()
+    dialog = AlgorithmDialog(algorithm)
+    wrappers = dialog.mainWidget().wrappers
+    scratch_names = (
+        algorithm.EPANET_VERSION,
+        algorithm.FLOW_UNITS,
+        algorithm.HEADLOSS,
+        algorithm.DEMAND_MODEL,
+        algorithm.DEFAULT_PATTERN,
+        algorithm.DEMAND_MULTIPLIER,
+        algorithm.EMITTER_EXPONENT,
+        algorithm.VISCOSITY,
+        algorithm.DIFFUSIVITY,
+        algorithm.SPECIFIC_GRAVITY,
+        algorithm.TRIALS,
+        algorithm.ACCURACY,
+        algorithm.UNBALANCED,
+        algorithm.MINIMUM_PRESSURE,
+        algorithm.REQUIRED_PRESSURE,
+        algorithm.PRESSURE_EXPONENT,
+    )
+
+    def is_enabled(name):
+        wrapper = wrappers[name]
+        widget = getattr(wrapper, "widget", None) or wrapper.wrappedWidget()
+        return widget.isEnabled()
+
+    assert is_enabled(algorithm.INPUT_EPANET)
+    assert all(not is_enabled(name) for name in scratch_names)
+
+    wrappers[algorithm.WORKFLOW].setValue(algorithm.WORKFLOW_SCRATCH)
+    wrappers[algorithm.DEMAND_MODEL].setValue(1)
+    wrappers['QUALITY_ANALYSIS'].setValue(1)
+    from qgis.core import QgsProcessingContext
+    wrappers['DURATION'].setParameterValue('24:00', QgsProcessingContext())
+    QGIS_APP.processEvents()
+
+    assert not is_enabled(algorithm.INPUT_EPANET)
+    assert all(is_enabled(name) for name in scratch_names)
+    dialog.close()
 
 
 def test_corrected_help_strings_are_exposed():
@@ -206,7 +281,9 @@ def test_corrected_help_strings_are_exposed():
     assert "EPANET demand scenario file" in algorithms["network_to_epanet_demand_scenario"].shortHelpString()
     assert "<code style=\"color:#0057b8; font-weight:600;\">.scn</code>" in algorithms["network_to_epanet_pipe_propierties_scenario"].shortHelpString()
     assert "not generated" in algorithms["hydrant_pairs"].shortHelpString()
+    assert algorithms["network_to_epanet"].displayName() == "Export EPANET model to INP file"
     assert algorithms["network_to_xml"].displayName() == "Network to XML"
     assert algorithms["network_from_xml"].displayName() == "Network from XML"
     assert algorithms["network_from_landxml"].displayName() == "Network from LandXML file"
+    assert algorithms["network_from_epanet"].displayName() == "Import EPANET model from INP"
     assert algorithms["network_to_graph"].displayName() == "Network to graph file"

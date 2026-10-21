@@ -139,8 +139,8 @@
             <translation>&lt;p&gt;Conecta entidades de una &lt;b&gt;capa de origen&lt;/b&gt; con una &lt;b&gt;capa de destino&lt;/b&gt; por distancia mínima.&lt;/p&gt;
 &lt;ul&gt;
 &lt;li&gt;Ambas capas deben contener un campo &lt;code&gt;id&lt;/code&gt;.&lt;/li&gt;
-&lt;li&gt;El número máximo de conexiones y la distancia máxima limitan los links generados.&lt;/li&gt;
-&lt;li&gt;La salida es una capa de links que representa las conexiones.&lt;/li&gt;
+&lt;li&gt;El número máximo de conexiones y la distancia máxima limitan las líneas de conexión generadas.&lt;/li&gt;
+&lt;li&gt;La salida es una capa de líneas que representa las conexiones.&lt;/li&gt;
 &lt;/ul&gt;</translation>
         </message>
         <message>
@@ -163,40 +163,40 @@
 &lt;/ul&gt;</translation>
         </message>
         <message>
-            <source>&lt;p&gt;Creates a pipesizing &lt;code&gt;.pro&lt;/code&gt; data file.&lt;/p&gt;
+            <source>&lt;p&gt;Creates a Pipe Sizer &lt;code&gt;.pro&lt;/code&gt; data file.&lt;/p&gt;
 &lt;ul&gt;
 &lt;li&gt;The required peak-flow and fire-flow pressures must be stored in node layer fields.&lt;/li&gt;
 &lt;li&gt;The pipe series name must be stored in a link layer field.&lt;/li&gt;
 &lt;li&gt;Optional hydrant pair/fire scenario lines can be written from a hydrant pairs layer.&lt;/li&gt;
 &lt;li&gt;The EPANET &lt;code&gt;.inp&lt;/code&gt; file path is written relative to the &lt;code&gt;.pro&lt;/code&gt; file.&lt;/li&gt;
-&lt;li&gt;The pipe catalog is selected directly as an external &lt;code&gt;.cat&lt;/code&gt; file.&lt;/li&gt;
+&lt;li&gt;The pipe catalog is selected directly as an external &lt;code&gt;.psr&lt;/code&gt; file.&lt;/li&gt;
 &lt;/ul&gt;
         </source>
-            <translation>&lt;p&gt;Crea un archivo de datos pipesizing &lt;code&gt;.pro&lt;/code&gt;.&lt;/p&gt;
+            <translation>&lt;p&gt;Crea un archivo de datos Pipe Sizer &lt;code&gt;.pro&lt;/code&gt;.&lt;/p&gt;
 &lt;ul&gt;
 &lt;li&gt;Las presiones requeridas para caudal punta e incendio deben estar almacenadas en campos de la capa de nodos.&lt;/li&gt;
 &lt;li&gt;El nombre de la serie de tuberías debe estar almacenado en un campo de la capa de links.&lt;/li&gt;
 &lt;li&gt;Opcionalmente se pueden escribir pares de hidrantes/escenarios de incendio desde una capa de pares de hidrantes.&lt;/li&gt;
 &lt;li&gt;La ruta del archivo EPANET &lt;code&gt;.inp&lt;/code&gt; se escribe relativa al archivo &lt;code&gt;.pro&lt;/code&gt;.&lt;/li&gt;
-&lt;li&gt;El catálogo de tuberías se selecciona directamente como archivo externo &lt;code&gt;.cat&lt;/code&gt;.&lt;/li&gt;
+&lt;li&gt;El catálogo de tuberías se selecciona directamente como archivo externo &lt;code&gt;.psr&lt;/code&gt;.&lt;/li&gt;
 &lt;/ul&gt;</translation>
         </message>
         <message>
-            <location filename="../processes/wnt_network_to_pipesizing.py" line="82" />
-            <source>&lt;p&gt;Creates a pipesizing &lt;code&gt;.pro&lt;/code&gt; data file.&lt;/p&gt;
+            <location filename="../processes/wnt_network_to_Pipe Sizer.py" line="82" />
+            <source>&lt;p&gt;Creates a Pipe Sizer &lt;code&gt;.pro&lt;/code&gt; data file.&lt;/p&gt;
 &lt;ul&gt;
 &lt;li&gt;The required pressure must be stored in a node layer field.&lt;/li&gt;
 &lt;li&gt;The pipe series name must be stored in a link layer field.&lt;/li&gt;
 &lt;li&gt;The EPANET &lt;code&gt;.inp&lt;/code&gt; file path is written relative to the &lt;code&gt;.pro&lt;/code&gt; file.&lt;/li&gt;
-&lt;li&gt;The pipe catalog is selected directly as an external &lt;code&gt;.cat&lt;/code&gt; file.&lt;/li&gt;
+&lt;li&gt;The pipe catalog is selected directly as an external &lt;code&gt;.psr&lt;/code&gt; file.&lt;/li&gt;
 &lt;/ul&gt;
         </source>
-            <translation>&lt;p&gt;Crea un archivo de datos pipesizing &lt;code&gt;.pro&lt;/code&gt;.&lt;/p&gt;
+            <translation>&lt;p&gt;Crea un archivo de datos Pipe Sizer &lt;code&gt;.pro&lt;/code&gt;.&lt;/p&gt;
 &lt;ul&gt;
 &lt;li&gt;La presión requerida debe estar almacenada en un campo de la capa de nodos.&lt;/li&gt;
 &lt;li&gt;El nombre de la serie de tuberías debe estar almacenado en un campo de la capa de links.&lt;/li&gt;
 &lt;li&gt;La ruta del archivo EPANET &lt;code&gt;.inp&lt;/code&gt; se escribe relativa al archivo &lt;code&gt;.pro&lt;/code&gt;.&lt;/li&gt;
-&lt;li&gt;El catálogo de tuberías se selecciona directamente como archivo externo &lt;code&gt;.cat&lt;/code&gt;.&lt;/li&gt;
+&lt;li&gt;El catálogo de tuberías se selecciona directamente como archivo externo &lt;code&gt;.psr&lt;/code&gt;.&lt;/li&gt;
 &lt;/ul&gt;</translation>
         </message>
         <message>
@@ -667,7 +667,7 @@
         </message>
         <message>
             <source>Connection layer</source>
-            <translation>Capa de conexiones</translation>
+            <translation>Nudos de consumo (JUNCTIONS)</translation>
         </message>
         <message>
             <source>Coordinate reference system (CRS)</source>
@@ -848,7 +848,7 @@
         </message>
         <message>
             <source>Links</source>
-            <translation>Links de salida</translation>
+            <translation>Elementos lineales de salida</translation>
         </message>
         <message>
             <source>Max distance</source>
@@ -1152,5 +1152,170 @@
             <source>Network from LandXML file</source>
             <translation>Importar red desde LandXML</translation>
         </message>
+        <message>
+            <source>&lt;p&gt;Exports junctions, reservoirs, tanks, pipes, pumps and valves to an EPANET INP file.&lt;/p&gt;&lt;p&gt;An existing INP preserves non-physical sections. When creating a model from scratch, EPANET options are editable.&lt;/p&gt;</source>
+            <translation>&lt;p&gt;Exporta junctions, reservoirs, tanks, pipes, pumps y valves a un archivo INP de EPANET.&lt;/p&gt;&lt;p&gt;Un INP existente conserva las secciones no físicas. Al crear un modelo desde cero, las opciones de EPANET son editables.&lt;/p&gt;</translation>
+        </message>
+        <message>
+            <source>&lt;p&gt;Imports an EPANET INP file as six typed layers: junctions, reservoirs, tanks, pipes, pumps and valves.&lt;/p&gt;&lt;p&gt;Every layer contains source-file and EPANET-version provenance. The former &lt;code&gt;epanet&lt;/code&gt; JSON field is not created.&lt;/p&gt;</source>
+            <translation>&lt;p&gt;Importa un archivo INP de EPANET como seis capas tipadas: junctions, reservoirs, tanks, pipes, pumps y valves.&lt;/p&gt;&lt;p&gt;Cada capa contiene la procedencia del archivo y la versión de EPANET. No se crea el anterior campo JSON &lt;code&gt;epanet&lt;/code&gt;.&lt;/p&gt;</translation>
+        </message>
+        <message>
+            <source>Default demand pattern</source>
+            <translation>Patrón de demanda predeterminado</translation>
+        </message>
+        <message>
+            <source>Demand model (EPANET 2.2)</source>
+            <translation>Modelo de demanda (EPANET 2.2)</translation>
+        </message>
+        <message>
+            <source>Import EPANET model from INP</source>
+            <translation>Importar modelo EPANET desde INP</translation>
+        </message>
+        <message>
+            <source>Export EPANET model to INP file</source>
+            <translation>Exportar modelo EPANET a archivo INP</translation>
+        </message>
+        <message>
+            <source>Headloss formula</source>
+            <translation>Fórmula de pérdidas de carga</translation>
+        </message>
+        <message>
+            <source>If unbalanced</source>
+            <translation>Si no hay equilibrio</translation>
+        </message>
+        <message>
+            <source>Maximum trials</source>
+            <translation>Máximo de iteraciones</translation>
+        </message>
+        <message>
+            <source>Select at least one EPANET model layer</source>
+            <translation>Selecciona al menos una capa del modelo EPANET</translation>
+        </message>
+        <message>
+            <source>The INP contains no unambiguous EPANET 2.2 syntax; version 2.0 compatibility was assumed.</source>
+            <translation>El INP no contiene sintaxis inequívoca de EPANET 2.2; se asumió compatibilidad con la versión 2.0.</translation>
+        </message>
+<message><source>&lt;p&gt;Creates an EPANET &lt;code&gt;.inp&lt;/code&gt; file from network node and link layers.&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;Output mode “Add links and nodes to existing EPANET model” adds the selected node and link layers to an existing EPANET &lt;code&gt;.inp&lt;/code&gt; model; model-analysis parameters are preserved from that file.&lt;/li&gt;
+&lt;li&gt;Output mode “Create EPANET model from scratch” creates a new EPANET model and writes the grouped emitter, energy, quality, calculation-stability, time, and report parameters.&lt;/li&gt;
+&lt;li&gt;Adds nodes to &lt;code&gt;JUNCTIONS&lt;/code&gt;, &lt;code&gt;RESERVOIRS&lt;/code&gt;, or &lt;code&gt;TANKS&lt;/code&gt;.&lt;/li&gt;
+&lt;li&gt;Adds links to &lt;code&gt;PIPES&lt;/code&gt;, &lt;code&gt;PUMPS&lt;/code&gt;, or &lt;code&gt;VALVES&lt;/code&gt;.&lt;/li&gt;
+&lt;li&gt;The final network graph is validated before writing the EPANET file.&lt;/li&gt;
+&lt;li&gt;Exports coordinates and intermediate vertices.&lt;/li&gt;
+&lt;li&gt;Pipe diameter and roughness are not exported; add them using scenario files.&lt;/li&gt;
+&lt;/ul&gt;
+        </source><translation>&lt;p&gt;Crea un archivo EPANET &lt;code&gt;.inp&lt;/code&gt; desde capas de nodos y links de red.&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;El modo de salida “Add links and nodes to existing EPANET model” añade las capas de nodos y links seleccionadas a un modelo EPANET &lt;code&gt;.inp&lt;/code&gt; existente; los parámetros de análisis se conservan desde ese archivo.&lt;/li&gt;
+&lt;li&gt;El modo de salida “Create EPANET model from scratch” crea un modelo EPANET nuevo y escribe los parámetros agrupados de emisores, energía, calidad, estabilidad del cálculo, tiempos e informe.&lt;/li&gt;
+&lt;li&gt;Añade nodos a &lt;code&gt;JUNCTIONS&lt;/code&gt;, &lt;code&gt;RESERVOIRS&lt;/code&gt; o &lt;code&gt;TANKS&lt;/code&gt;.&lt;/li&gt;
+&lt;li&gt;Añade links a &lt;code&gt;PIPES&lt;/code&gt;, &lt;code&gt;PUMPS&lt;/code&gt; o &lt;code&gt;VALVES&lt;/code&gt;.&lt;/li&gt;
+&lt;li&gt;El grafo final de la red se valida antes de escribir el archivo EPANET.&lt;/li&gt;
+&lt;li&gt;Exporta coordenadas y vértices intermedios.&lt;/li&gt;
+&lt;li&gt;El diámetro y la rugosidad de tuberías no se exportan; añádelos usando archivos de escenario.&lt;/li&gt;
+&lt;/ul&gt;</translation></message>
+<message><source>Add elements to existing EPANET model</source><translation>Añadir elementos a un modelo EPANET existente</translation></message>
+<message><source>Quality — trace node is required for source trace analysis</source><translation>Calidad — el nodo a trazar es obligatorio para el análisis de trazado de procedencia</translation></message>
+<message><source>Report — energy</source><translation>Informe — energía</translation></message>
+<message><source>Report — summary</source><translation>Informe — resumen</translation></message>
+<message><source>Emitters — pressure exponent</source><translation>Emisores — exponente de la presión</translation></message>
+<message><source>Energy — price per kWh</source><translation>Energía — precio por kWh</translation></message>
+<message><source>Energy — price pattern</source><translation>Energía — patrón de precios</translation></message>
+<message><source>Energy — global pump efficiency (%)</source><translation>Energía — eficiencia global de las bombas (%)</translation></message>
+<message><source>Energy — demand charge per maximum kW</source><translation>Energía — precio de la potencia por kW máximo</translation></message>
+<message><source>Quality — analysis type</source><translation>Calidad — tipo de análisis</translation></message>
+<message><source>Quality — chemical name</source><translation>Calidad — nombre de la sustancia</translation></message>
+<message><source>Quality — concentration mass units</source><translation>Calidad — unidad de masa de la concentración</translation></message>
+<message><source>Quality — relative diffusivity</source><translation>Calidad — difusividad relativa</translation></message>
+<message><source>Quality — trace node</source><translation>Calidad — nodo a trazar</translation></message>
+<message><source>Quality — tolerance</source><translation>Calidad — tolerancia</translation></message>
+<message><source>Quality — bulk reaction order</source><translation>Calidad — orden de la reacción en la masa de agua</translation></message>
+<message><source>Quality — wall reaction order</source><translation>Calidad — orden de la reacción en la pared</translation></message>
+<message><source>Quality — global bulk reaction coefficient</source><translation>Calidad — coeficiente global de reacción en la masa de agua</translation></message>
+<message><source>Quality — global wall reaction coefficient</source><translation>Calidad — coeficiente global de reacción en la pared</translation></message>
+<message><source>Quality — limiting concentration</source><translation>Calidad — concentración límite</translation></message>
+<message><source>Quality — wall coefficient correlation</source><translation>Calidad — correlación del coeficiente de pared</translation></message>
+<message><source>Calculation stability — maximum trials</source><translation>Estabilidad del cálculo — número máximo de iteraciones</translation></message>
+<message><source>Calculation stability — relative accuracy</source><translation>Estabilidad del cálculo — precisión relativa</translation></message>
+<message><source>Calculation stability — maximum head error</source><translation>Estabilidad del cálculo — error de carga máximo</translation></message>
+<message><source>Calculation stability — maximum flow change</source><translation>Estabilidad del cálculo — variación máxima de caudal</translation></message>
+<message><source>Calculation stability — if unbalanced</source><translation>Estabilidad del cálculo — si no converge</translation></message>
+<message><source>Calculation stability — status check frequency</source><translation>Estabilidad del cálculo — frecuencia de comprobación de estados</translation></message>
+<message><source>Calculation stability — maximum status checks</source><translation>Estabilidad del cálculo — límite de comprobaciones de estados</translation></message>
+<message><source>Calculation stability — damping limit</source><translation>Estabilidad del cálculo — límite de amortiguación</translation></message>
+<message><source>Times — total duration</source><translation>Tiempos — duración total</translation></message>
+<message><source>Times — hydraulic time step</source><translation>Tiempos — intervalo hidráulico</translation></message>
+<message><source>Times — quality time step</source><translation>Tiempos — intervalo de calidad</translation></message>
+<message><source>Times — rule time step</source><translation>Tiempos — intervalo de reglas</translation></message>
+<message><source>Times — pattern time step</source><translation>Tiempos — intervalo de patrones</translation></message>
+<message><source>Times — pattern start</source><translation>Tiempos — inicio de patrones</translation></message>
+<message><source>Times — report time step</source><translation>Tiempos — intervalo de informe</translation></message>
+<message><source>Times — report start</source><translation>Tiempos — inicio del informe</translation></message>
+<message><source>Times — start clock time</source><translation>Tiempos — hora de inicio</translation></message>
+<message><source>Times — statistic</source><translation>Tiempos — estadístico</translation></message>
+<message><source>Report — page size</source><translation>Informe — líneas por página</translation></message>
+<message><source>Report — output file</source><translation>Informe — archivo de salida</translation></message>
+<message><source>Report — status</source><translation>Informe — estado</translation></message>
+<message><source>Report — junctions, reservoirs and tanks</source><translation>Informe — nudos de consumo, embalses y depósitos</translation></message>
+<message><source>Report — pipes, pumps and valves</source><translation>Informe — tuberías, bombas y válvulas</translation></message>
+<message><source>Chemical</source><translation>Sustancia química</translation></message>
+<message><source>Water age</source><translation>Edad del agua</translation></message>
+<message><source>Source trace</source><translation>Trazado de procedencia</translation></message>
+<message><source>Stop</source><translation>Detener</translation></message>
+<message><source>Continue</source><translation>Continuar</translation></message>
+<message><source>Average</source><translation>Promedio</translation></message>
+<message><source>Full</source><translation>Completo</translation></message>
+<message><source>All</source><translation>Todos</translation></message>
+<message><source>Zero</source><translation>Cero</translation></message>
+<message><source>First</source><translation>Primer orden</translation></message>
+<message><source>None</source><translation>Ninguno</translation></message>
+<message><source>Minimum</source><translation>Mínimo</translation></message>
+<message><source>Maximum</source><translation>Máximo</translation></message>
+<message><source>Range</source><translation>Rango</translation></message>
+<message><source>No</source><translation>No</translation></message>
+<message><source>Yes</source><translation>Sí</translation></message>
+<message><source>Junctions layer</source><translation>Nudos de consumo (JUNCTIONS)</translation></message>
+<message><source>Pipes layer</source><translation>Capa de tuberías</translation></message>
+<message><source>Pumps layer</source><translation>Capa de bombas</translation></message>
+<message><source>Reservoirs layer</source><translation>Capa de embalses</translation></message>
+<message><source>Tanks layer</source><translation>Capa de depósitos</translation></message>
+<message><source>Valves layer</source><translation>Capa de válvulas</translation></message>
+<message><source>&lt;p&gt;Creates an EPANET &lt;code&gt;.inp&lt;/code&gt; file from category-specific network layers.&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;Output mode “Add elements to existing EPANET model” adds the selected &lt;code&gt;JUNCTIONS&lt;/code&gt;, &lt;code&gt;RESERVOIRS&lt;/code&gt;, &lt;code&gt;TANKS&lt;/code&gt;, &lt;code&gt;PIPES&lt;/code&gt;, &lt;code&gt;PUMPS&lt;/code&gt;, and &lt;code&gt;VALVES&lt;/code&gt; layers to an existing EPANET &lt;code&gt;.inp&lt;/code&gt; model; model-analysis parameters are preserved from that file.&lt;/li&gt;
+&lt;li&gt;Output mode “Create EPANET model from scratch” creates a new EPANET model and writes the grouped emitter, energy, quality, calculation-stability, time, and report parameters.&lt;/li&gt;
+&lt;li&gt;Writes each input layer to its matching EPANET section without combining &lt;code&gt;PIPES&lt;/code&gt;, &lt;code&gt;PUMPS&lt;/code&gt;, or &lt;code&gt;VALVES&lt;/code&gt; under a generic layer name.&lt;/li&gt;
+&lt;li&gt;The final network graph is validated before writing the EPANET file.&lt;/li&gt;
+&lt;li&gt;Exports coordinates and intermediate vertices.&lt;/li&gt;
+&lt;li&gt;Pipe diameter and roughness are not exported; add them using scenario files.&lt;/li&gt;
+&lt;/ul&gt;
+        </source><translation>&lt;p&gt;Crea un archivo EPANET &lt;code&gt;.inp&lt;/code&gt; a partir de capas de red específicas para cada categoría.&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;El modo de salida “Add elements to existing EPANET model” añade las capas seleccionadas de &lt;code&gt;JUNCTIONS&lt;/code&gt;, &lt;code&gt;RESERVOIRS&lt;/code&gt;, &lt;code&gt;TANKS&lt;/code&gt;, &lt;code&gt;PIPES&lt;/code&gt;, &lt;code&gt;PUMPS&lt;/code&gt; y &lt;code&gt;VALVES&lt;/code&gt; a un modelo EPANET &lt;code&gt;.inp&lt;/code&gt; existente; los parámetros de análisis se conservan desde ese archivo.&lt;/li&gt;
+&lt;li&gt;El modo de salida “Create EPANET model from scratch” crea un modelo EPANET nuevo y escribe los parámetros agrupados de emisores, energía, calidad, estabilidad del cálculo, tiempos e informe.&lt;/li&gt;
+&lt;li&gt;Escribe cada capa de entrada en su sección EPANET correspondiente, sin agrupar &lt;code&gt;PIPES&lt;/code&gt;, &lt;code&gt;PUMPS&lt;/code&gt; o &lt;code&gt;VALVES&lt;/code&gt; bajo un nombre de capa genérico.&lt;/li&gt;
+&lt;li&gt;El grafo final de la red se valida antes de escribir el archivo EPANET.&lt;/li&gt;
+&lt;li&gt;Exporta las coordenadas y los vértices intermedios.&lt;/li&gt;
+&lt;li&gt;El diámetro y la rugosidad de las tuberías no se exportan; añádelos mediante archivos de escenario.&lt;/li&gt;
+&lt;/ul&gt;
+        </translation></message>
+        <message><source>Fire flow for type 2</source><translation>Caudal de incendio del tipo 2</translation></message>
+        <message><source>Network to Pipe Sizer data file (.pro)</source><translation>Exportar red a archivo de Pipe Sizer (.pro)</translation></message>
+        <message><source>Pipe Sizer pipe catalog file</source><translation>Archivo de catálogo de tuberías de Pipe Sizer (.psr)</translation></message>
+        <message><source>Reset initial pipe diameters</source><translation>Restablecer los diámetros iniciales de las tuberías</translation></message>
+        <message><source>Quality — tank reaction order</source><translation>Calidad — orden de reacción en los depósitos</translation></message>
+        <message><source>&lt;p&gt;Exports junctions, reservoirs, tanks, pipes, pumps and valves to an EPANET INP file.&lt;/p&gt;&lt;p&gt;Output mode: update selected objects in an existing INP while preserving other objects and global settings. When creating a model from scratch, EPANET options are editable.&lt;/p&gt;</source><translation>&lt;p&gt;Exporta nudos de consumo, embalses, depósitos, tuberías, bombas y válvulas a un archivo INP de EPANET.&lt;/p&gt;&lt;p&gt;Modo de salida: actualiza los elementos seleccionados de un INP existente y conserva los demás elementos y las opciones globales. Al crear un modelo desde cero, permite editar las opciones de EPANET.&lt;/p&gt;</translation></message>
+        <message><source>INP pattern and curve definitions</source><translation>Definiciones de patrones y curvas desde un INP</translation></message>
+        <message><source>Target junctions layer (JUNCTIONS)</source><translation>Capa de nudos de consumo de destino (JUNCTIONS)</translation></message>
+        <message><source>Junctions with demands layer</source><translation>Capa de nudos de consumo con demandas (JUNCTIONS)</translation></message>
+        <message><source>Layer representation</source><translation>Representación de las capas</translation></message>
+        <message><source>EPANET categories</source><translation>Categorías de EPANET</translation></message>
+        <message><source>Generic nodes and links</source><translation>Nodos y elementos lineales genéricos</translation></message>
+        <message><source>Emitters</source><translation>Emisores</translation></message>
+        <message><source>Quality</source><translation>Calidad</translation></message>
+        <message><source>Times</source><translation>Tiempos</translation></message>
+        <message><source>Calculation stability</source><translation>Estabilidad del cálculo</translation></message>
     </context>
 </TS>

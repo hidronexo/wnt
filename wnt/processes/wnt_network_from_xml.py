@@ -247,8 +247,11 @@ class NetworkFromXmlAlgorithm(WntProcessingAlgorithm):
         self.addParameter(QgsProcessingParameterFile(self.INPUT, self.tr("XML file"), extension="xml"))
         self.addParameter(QgsProcessingParameterString(self.VERSION_ID, self.tr("Version id"), optional=True))
         self.addParameter(QgsProcessingParameterString(self.NETWORK_NAMES, self.tr("Network names"), optional=True))
-        self.addParameter(QgsProcessingParameterFeatureSink(self.OUTPUT_NODES, self.tr("Nodes")))
-        self.addParameter(QgsProcessingParameterFeatureSink(self.OUTPUT_LINES, self.tr("Links")))
+        self.addParameter(QgsProcessingParameterFeatureSink(self.OUTPUT_NODES, self.tr("Nodes"), optional=True))
+        self.addParameter(QgsProcessingParameterFeatureSink(self.OUTPUT_LINES, self.tr("Links"), optional=True))
+        from .category_sinks import add_outputs
+        from ..utils.utils_epanet_model import PHYSICAL_SECTIONS
+        add_outputs(self, PHYSICAL_SECTIONS)
 
     def processAlgorithm(self, parameters, context, feedback):
         xml_file = self.parameterAsFile(parameters, self.INPUT, context)
@@ -280,12 +283,21 @@ class NetworkFromXmlAlgorithm(WntProcessingAlgorithm):
         netcnt = nodcnt = lnkcnt = 0
         node_id = link_id = None
         first_crs = None
+        categorized = {}
+        typed_count = 0
         for index, name in enumerate(names_to_load):
             network = tools.WntNetwork()
             try:
                 network.from_xml(xml_file, version_id=version_id, network_id=name)
             except Exception as exc:
                 error(feedback, str(exc))
+            if (getattr(network, 'xml_model_type', None) == 'epanet'
+                    and self.parameterDefinition('OUTPUT_JUNCTIONS') is not None
+                    and self.OUTPUT_NODES not in parameters and self.OUTPUT_LINES not in parameters):
+                from .typed_xml import import_network
+                categorized.update(import_network(self, network, parameters, context, feedback, first=typed_count == 0))
+                typed_count += 1
+                continue
             node_fields, link_fields, node_features, link_features, crs = wnt_layer_data(network)
             if first_crs is None:
                 first_crs = crs
@@ -318,6 +330,10 @@ class NetworkFromXmlAlgorithm(WntProcessingAlgorithm):
         finish(feedback)
         if feedback.isCanceled():
             return {}
+        if categorized:
+            if node_id is not None:
+                categorized.update({self.OUTPUT_NODES: node_id, self.OUTPUT_LINES: link_id})
+            return categorized
         return {self.OUTPUT_NODES: node_id, self.OUTPUT_LINES: link_id}
 
     def _process_landxml(self, xml_file, selected_network_names, parameters, context, feedback):

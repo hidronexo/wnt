@@ -110,7 +110,13 @@ class NodeDegreesAlgorithm(WntProcessingAlgorithm):
             )
         )
 
+        from .typed_graph import configure
+        configure(self)
+
     def processAlgorithm(self, parameters, context, feedback):
+        from .typed_graph import requested, process
+        if requested(parameters):
+            return process(self, parameters, context, feedback)
         """
         RUN PROCESS
         """

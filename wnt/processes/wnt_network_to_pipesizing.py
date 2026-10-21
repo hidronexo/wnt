@@ -1,7 +1,7 @@
 """Export pipesizing input from network layers."""
 
 import os
-import re
+import math
 from pathlib import Path
 
 from qgis.core import (QgsProcessing,
@@ -10,21 +10,27 @@ from qgis.core import (QgsProcessing,
                        QgsProcessingParameterFile,
                        QgsProcessingParameterFileDestination,
                        QgsProcessingParameterNumber)
+from qgis.core import QgsProcessingParameterBoolean
 from .base import WntProcessingAlgorithm, missing_fields
 from .messages import error, finish, info, start, warning
+from ..utils.export_files import catalog_groups, publish_files, ModelReferences, pressure_value
 
 
 class NetworkToPipesizingAlgorithm(WntProcessingAlgorithm):
-    """Build a pipesizing data file (.pro) from node and link data."""
+    """Build a Pipe Sizer data file (.pro) from node and link data."""
 
-    INPUT_NODES = 'INPUT_NODES'
+    INPUT_JUNCTIONS = 'INPUT_JUNCTIONS'
+    INPUT_NODES = INPUT_JUNCTIONS
     FIELD_PRESSURE = 'FIELD_PRESSURE'
     FIELD_PRESSURE_FIRE = 'FIELD_PRESSURE_FIRE'
-    INPUT_LINES = 'INPUT_LINES'
+    INPUT_PIPES = 'INPUT_PIPES'
+    INPUT_LINES = INPUT_PIPES
     FIELD_SERIES = 'FIELD_SERIES'
     INPUT_FIRE_SCENARIOS = 'INPUT_FIRE_SCENARIOS'
     FIELD_FIRE_FLOW = 'FIELD_FIRE_FLOW'
     FIRE_FLOW = 'FIRE_FLOW'
+    FIRE_FLOW_2 = 'FIRE_FLOW_2'
+    RESET_INITIAL = 'RESET_INITIAL'
     PEAK_FACTOR = 'PEAK_FACTOR'
     FIRE_FACTOR = 'FIRE_FACTOR'
     INPUT_EPANET = 'INPUT_EPANET'
@@ -32,7 +38,7 @@ class NetworkToPipesizingAlgorithm(WntProcessingAlgorithm):
     OUTPUT = 'OUTPUT'
     MIN_FACTOR = 0.01
     MAX_FACTOR = 100.0
-    DEFAULT_FIRE_FLOW_NAME = 'DEFAULT'
+    DEFAULT_FIRE_FLOW_NAME = 'fire_flow_1'
 
     def createInstance(self):
         return NetworkToPipesizingAlgorithm()
@@ -40,11 +46,11 @@ class NetworkToPipesizingAlgorithm(WntProcessingAlgorithm):
     @staticmethod
     def _strip_catalog_comment(line):
         """Return a catalog line without supported inline comments."""
-        return line.split(';', 1)[0].split('#', 1)[0].strip()
+        return line.split(';', 1)[0].strip()
 
     @classmethod
     def _catalog_has_section_header(cls, catalog_bytes):
-        text = catalog_bytes.decode('utf-8')
+        text = catalog_bytes.decode('utf-8-sig')
         for line in text.splitlines():
             clean_line = cls._strip_catalog_comment(line)
             if clean_line.startswith('[') and clean_line.endswith(']'):
@@ -53,67 +59,36 @@ class NetworkToPipesizingAlgorithm(WntProcessingAlgorithm):
 
     @classmethod
     def _catalog_series(cls, catalog_bytes):
-        series = set()
-        for raw in catalog_bytes.decode('utf-8').splitlines():
-            clean = cls._strip_catalog_comment(raw)
-            if not clean:
-                continue
-            parts = clean.split()
-            if len(parts) < 3:
-                raise ValueError('Pipesizing catalog lines must contain: series diameter roughness')
-            try:
-                diameter = float(parts[1])
-                roughness = float(parts[2])
-            except ValueError as exc:
-                raise ValueError('Pipesizing catalog diameter and roughness must be numeric') from exc
-            if diameter <= 0 or roughness <= 0:
-                raise ValueError('Pipesizing catalog diameter and roughness must be greater than zero')
-            series.add(parts[0])
-        if not series:
-            raise ValueError('Pipesizing catalog is empty')
-        return series
+        return catalog_groups(catalog_bytes, 3)
 
     @staticmethod
     def _relative_network_path(epanet_file, output_file):
         output_dir = Path(output_file).parent
         relative = os.path.relpath(str(epanet_file), str(output_dir))
-        if re.search(r'\s', relative):
-            raise ValueError('EPANET path relative to the .pro file must not contain spaces')
         return relative.replace('\\', '/')
 
     @staticmethod
     def _flow_setting_name(value):
         name = str(value).strip()
-        return name if name.upper().startswith('FLOW_') else 'FLOW_' + name
+        aliases = {
+            '1': 'fire_flow_1', '2': 'fire_flow_2', 'FIRE_FLOW_1': 'fire_flow_1', 'FIRE_FLOW_2': 'fire_flow_2',
+            'H80': 'fire_flow_1', '80': 'fire_flow_1', 'DN_80': 'fire_flow_1', 'HYDRANT_DN_80': 'fire_flow_1',
+            'H_100': 'fire_flow_2', '100': 'fire_flow_2', 'DN_100': 'fire_flow_2', 'HYDRANT_DN_100': 'fire_flow_2',
+        }
+        if name.upper() not in aliases:
+            raise ValueError('Unsupported fire flow type: ' + name)
+        return aliases[name.upper()]
 
     @classmethod
     def _validate_factor(cls, value, label):
-        if value < cls.MIN_FACTOR or value > cls.MAX_FACTOR:
+        if not math.isfinite(value) or value < cls.MIN_FACTOR or value > cls.MAX_FACTOR:
             raise ValueError('{} must be between {} and {}'.format(label, cls.MIN_FACTOR, cls.MAX_FACTOR))
-
-    @staticmethod
-    def _atomic_write_outputs(output_file, catalog_file, pro_text, catalog_bytes):
-        output_path = Path(output_file)
-        catalog_path = Path(catalog_file)
-        output_tmp = output_path.with_name(output_path.name + '.tmp')
-        catalog_tmp = catalog_path.with_name(catalog_path.name + '.tmp')
-        try:
-            output_tmp.write_text(pro_text, encoding='utf-8')
-            catalog_tmp.write_bytes(catalog_bytes)
-            catalog_tmp.replace(catalog_path)
-            output_tmp.replace(output_path)
-        finally:
-            for path in (output_tmp, catalog_tmp):
-                try:
-                    path.unlink(missing_ok=True)
-                except OSError:
-                    pass
 
     def name(self):
         return 'network_to_pipesizing'
 
     def displayName(self):
-        return self.tr('Network to pipesizing data file (.pro)')
+        return self.tr('Network to Pipe Sizer data file (.pro)')
 
     def group(self):
         return self.tr('Export')
@@ -122,21 +97,25 @@ class NetworkToPipesizingAlgorithm(WntProcessingAlgorithm):
         return 'export'
 
     def shortHelpString(self):
-        return self.tr('''<p>Creates a pipesizing <code>.pro</code> data file.</p>
+        return self.tr('''<p>Creates a Pipe Sizer <code>.pro</code> data file.</p>
 <ul>
 <li>The required peak-flow and fire-flow pressures must be stored in node layer fields.</li>
 <li>The pipe series name must be stored in a link layer field.</li>
 <li>Optional hydrant pair/fire scenario lines can be written from a hydrant pairs layer.</li>
 <li>The EPANET <code>.inp</code> file path is written relative to the <code>.pro</code> file.</li>
-<li>The pipe catalog is selected directly as an external <code>.cat</code> file.</li>
+<li>The pipe catalog is selected directly as an external <code>.psr</code> file.</li>
 </ul>
         ''')
 
     def initAlgorithm(self, config=None):
+        self.addParameter(QgsProcessingParameterBoolean(
+            self.RESET_INITIAL, self.tr('Reset initial pipe diameters'), defaultValue=False))
+        self.addParameter(QgsProcessingParameterNumber(
+            self.FIRE_FLOW_2, self.tr('Fire flow for type 2'), defaultValue=0.0, minValue=0.0))
         self.addParameter(
             QgsProcessingParameterFeatureSource(
                 self.INPUT_NODES,
-                self.tr('Input node layer'),
+                self.tr('Junctions layer'),
                 [QgsProcessing.TypeVectorPoint]
                 )
             )
@@ -159,7 +138,7 @@ class NetworkToPipesizingAlgorithm(WntProcessingAlgorithm):
                 self.INPUT_NODES,
                 type=QgsProcessingParameterField.Numeric,
                 allowMultiple=False,
-                optional=False
+                optional=True
                 )
             )
         self.addParameter(
@@ -185,7 +164,7 @@ class NetworkToPipesizingAlgorithm(WntProcessingAlgorithm):
         self.addParameter(
             QgsProcessingParameterFeatureSource(
                 self.INPUT_LINES,
-                self.tr('Input link layer'),
+                self.tr('Pipes layer'),
                 [QgsProcessing.TypeVectorLine]
                 )
             )
@@ -236,8 +215,8 @@ class NetworkToPipesizingAlgorithm(WntProcessingAlgorithm):
         self.addParameter(
             QgsProcessingParameterFile(
                 self.INPUT_CATALOG,
-                self.tr('Pipesizing pipe catalog file'),
-                extension='cat'
+                self.tr('Pipe Sizer pipe catalog file'),
+                extension='psr'
                 )
             )
         self.addParameter(
@@ -275,17 +254,28 @@ class NetworkToPipesizingAlgorithm(WntProcessingAlgorithm):
             fire_flow_fields = []
         fire_flow_field = fire_flow_fields[0] if fire_flow_fields else ''
         fire_flow_value = self.parameterAsDouble(parameters, self.FIRE_FLOW, context)
+        fire_flow_2 = self.parameterAsDouble(parameters, self.FIRE_FLOW_2, context) if self.FIRE_FLOW_2 in parameters else 0.0
         epanet_file = self.parameterAsFile(parameters, self.INPUT_EPANET, context)
         catalog_input_file = self.parameterAsFile(parameters, self.INPUT_CATALOG, context)
         output_file = self.parameterAsFileOutput(parameters, self.OUTPUT, context)
 
+        if not Path(epanet_file).is_file():
+            error(feedback, 'EPANET file not found: ' + epanet_file)
+        references = ModelReferences(epanet_file)
+        if references.extended_period():
+            scenarios = None
+            fire_pressure_field = pfield
+            fire_factor = 1.0
+
         if nodes.sourceCrs() != links.sourceCrs():
             error(feedback, 'Layers have different CRS')
-        missing = missing_fields(nodes, ['id']) + missing_fields(links, ['id'])
+        missing = missing_fields(nodes, ['id', pfield, fire_pressure_field]) + missing_fields(links, ['id', sfield])
         if scenarios is not None:
             if nodes.sourceCrs() != scenarios.sourceCrs():
                 error(feedback, 'Layers have different CRS')
             missing += missing_fields(scenarios, ['hydrant_1', 'hydrant_2'])
+            if fire_flow_field:
+                missing += missing_fields(scenarios, [fire_flow_field])
         if missing:
             error(feedback, 'Missing required fields: ' + ', '.join(missing))
         try:
@@ -297,12 +287,12 @@ class NetworkToPipesizingAlgorithm(WntProcessingAlgorithm):
             error(feedback, 'EPANET file not found: ' + epanet_file)
         catalog_source = Path(catalog_input_file)
         if not catalog_source.exists():
-            error(feedback, 'Pipesizing pipe catalog file not found: ' + catalog_input_file)
+            error(feedback, 'Pipe Sizer pipe catalog file not found: ' + catalog_input_file)
 
         try:
             catalog_bytes = catalog_source.read_bytes()
             if self._catalog_has_section_header(catalog_bytes):
-                error(feedback, 'Pipesizing pipe catalog must not contain section headers')
+                error(feedback, 'Pipe Sizer pipe catalog must not contain section headers')
             known_series = self._catalog_series(catalog_bytes)
             network_path = self._relative_network_path(epanet_file, output_file)
         except (UnicodeDecodeError, ValueError) as exc:
@@ -313,6 +303,9 @@ class NetworkToPipesizingAlgorithm(WntProcessingAlgorithm):
             peak_value = feature[pfield]
             fire_value = feature[fire_pressure_field]
             if peak_value not in (None, '') and fire_value not in (None, ''):
+                references.require('JUNCTIONS', feature['id'])
+                pressure_value(peak_value)
+                pressure_value(fire_value)
                 pressure_lines.append('{}    {}    {}'.format(feature['id'], peak_value, fire_value))
 
         pipe_lines = []
@@ -324,6 +317,7 @@ class NetworkToPipesizingAlgorithm(WntProcessingAlgorithm):
             series_name = str(value)
             if series_name not in known_series:
                 unknown_series.add(series_name)
+            references.require('PIPES', feature['id'])
             pipe_lines.append('{}    {}'.format(feature['id'], series_name))
         if unknown_series:
             error(feedback, 'Pipes reference unknown series: ' + ', '.join(sorted(unknown_series)))
@@ -331,13 +325,14 @@ class NetworkToPipesizingAlgorithm(WntProcessingAlgorithm):
         fire_scenario_lines = []
         flow_names = set()
         if scenarios is not None:
-            if fire_flow_value <= 0:
-                error(feedback, 'Fire flow value must be greater than zero when fire scenarios are selected')
             for feature in scenarios.getFeatures():
+                references.require('JUNCTIONS', feature['hydrant_1'], unique=False)
+                references.require('JUNCTIONS', feature['hydrant_2'], unique=False)
                 flow_name = feature[fire_flow_field] if fire_flow_field else self.DEFAULT_FIRE_FLOW_NAME
                 if flow_name in (None, ''):
                     flow_name = self.DEFAULT_FIRE_FLOW_NAME
-                flow_names.add(self._flow_setting_name(flow_name))
+                flow_name = self._flow_setting_name(flow_name)
+                flow_names.add(flow_name)
                 fire_scenario_lines.append('{}    {}    {}    {}'.format(
                     feature['hydrant_1'],
                     flow_name,
@@ -345,7 +340,7 @@ class NetworkToPipesizingAlgorithm(WntProcessingAlgorithm):
                     flow_name,
                 ))
 
-        catalog_file = Path(output_file).with_suffix('.cat')
+        catalog_file = Path(output_file).with_suffix('.psr')
         if catalog_file.exists():
             warning(feedback, f"Existing pipe catalog will be overwritten: {catalog_file}")
         lines = [
@@ -358,7 +353,12 @@ class NetworkToPipesizingAlgorithm(WntProcessingAlgorithm):
             'fire_factor {}'.format(fire_factor),
         ]
         for flow_name in sorted(flow_names):
-            lines.append('{} {}'.format(flow_name, fire_flow_value))
+            value = fire_flow_2 if flow_name == 'fire_flow_2' else fire_flow_value
+            if not math.isfinite(value) or value <= 0:
+                error(feedback, 'Fire flow value must be greater than zero when fire scenarios are selected')
+            lines.append('{} {}'.format(flow_name, value))
+        reset_initial = self.parameterAsBool(parameters, self.RESET_INITIAL, context) if self.RESET_INITIAL in parameters else False
+        lines.append('reset_initial ' + ('true' if reset_initial else 'false'))
         lines.extend(['', '[PRESSURES]', '; node_id   min_peak_pressure   min_fire_pressure'])
         lines.extend(pressure_lines)
         lines.extend(['', '[FIRE_SCENARIOS]', '; node_id   fire_flow   node_id   fire_flow'])
@@ -367,12 +367,10 @@ class NetworkToPipesizingAlgorithm(WntProcessingAlgorithm):
         lines.extend(pipe_lines)
 
         try:
-            self._atomic_write_outputs(
-                output_file,
-                catalog_file,
-                '\n'.join(lines) + '\n',
-                catalog_bytes,
-            )
+            if feedback.isCanceled():
+                return {}
+            publish_files({output_file: ('\n'.join(lines) + '\n').encode('utf-8'), catalog_file: catalog_bytes},
+                          inputs=(epanet_file, catalog_input_file))
         except OSError as exc:
             error(feedback, str(exc))
 

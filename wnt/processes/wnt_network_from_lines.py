@@ -11,6 +11,7 @@ from qgis.core import (QgsFeature,
                        QgsCoordinateTransform,
                        QgsWkbTypes,
                        QgsProcessing,
+                       QgsProcessingParameterDefinition,
                        QgsProcessingParameterCrs,
                        QgsProcessingParameterEnum,
                        QgsProcessingParameterBoolean,
@@ -293,6 +294,25 @@ class NetworkFromLinesAlgorithm(WntProcessingAlgorithm):
             )
         )
 
+        from .category_sinks import add_outputs
+        for key in (self.OUTPUT_NODES, self.OUTPUT_LINES):
+            parameter = self.parameterDefinition(key)
+            parameter.setFlags(parameter.flags() | QgsProcessingParameterDefinition.FlagHidden | QgsProcessingParameterDefinition.FlagOptional)
+        add_outputs(self, ('JUNCTIONS', 'PIPES', 'PUMPS', 'VALVES'))
+
+    def parameterAsSink(self, parameters, name, context, fields, geometry, crs, *args, **kwargs):
+        if (self.parameterDefinition('OUTPUT_PIPES') is not None
+                and self.OUTPUT_NODES not in parameters and self.OUTPUT_LINES not in parameters
+                and name in (self.OUTPUT_NODES, self.OUTPUT_LINES)):
+            from .category_sinks import create_sinks
+            point = name == self.OUTPUT_NODES
+            categories = ('JUNCTIONS',) if point else ('PIPES', 'PUMPS', 'VALVES')
+            sink, outputs = create_sinks(self, parameters, context, fields, geometry, crs,
+                                         point, categories, super().parameterAsSink)
+            self._category_outputs.update(outputs)
+            return sink, next(iter(outputs.values()))
+        return super().parameterAsSink(parameters, name, context, fields, geometry, crs, *args, **kwargs)
+
     def checkParameterValues(self, parameters, context):
         """
         Validate algorithm parameters before running.
@@ -312,6 +332,7 @@ class NetworkFromLinesAlgorithm(WntProcessingAlgorithm):
         return super().checkParameterValues(parameters, context)
 
     def processAlgorithm(self, parameters, context, feedback):
+        self._category_outputs = {}
         """
         RUN PROCESS
         """
@@ -443,7 +464,8 @@ class NetworkFromLinesAlgorithm(WntProcessingAlgorithm):
             QgsWkbTypes.Point,
             output_crs
             )
-        set_output_layer_name(context, node_id, f'{layer_base_name(linelayer)}_nodes')
+        if not self._category_outputs:
+            set_output_layer_name(context, node_id, f'{layer_base_name(linelayer)}_nodes')
 
         # ADD NODE FEATURES (Bulk)
         node_features = []
@@ -500,7 +522,8 @@ class NetworkFromLinesAlgorithm(WntProcessingAlgorithm):
             QgsWkbTypes.LineString,
             output_crs
             )
-        set_output_layer_name(context, link_id, f'{layer_base_name(linelayer)}_links')
+        if not self._category_outputs:
+            set_output_layer_name(context, link_id, f'{layer_base_name(linelayer)}_links')
 
         # ADD LINK FEATURES (Bulk)
         link_features = []
@@ -539,7 +562,7 @@ class NetworkFromLinesAlgorithm(WntProcessingAlgorithm):
         if feedback.isCanceled():
             return {}
 
-        return {self.OUTPUT_NODES: node_id, self.OUTPUT_LINES: link_id}
+        return self._category_outputs or {self.OUTPUT_NODES: node_id, self.OUTPUT_LINES: link_id}
 
     def _log_options(
             self,

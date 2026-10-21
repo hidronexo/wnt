@@ -293,6 +293,14 @@ class SplitLinesAtPointsAlgorithm(WntProcessingAlgorithm):
         else:
             error(feedback, "Layers have different CRS")
 
+        from .base import field_names
+        fields = field_names(linlayer)
+        hydraulic_device = bool(fields.intersection(('pump_power', 'head_curve', 'valve_type')))
+        if 'type' in fields:
+            hydraulic_device = hydraulic_device or any(str(feature['type']).upper() in (
+                'PUMP', 'VALVE', 'PRV', 'PSV', 'PBV', 'FCV', 'TCV', 'GPV') for feature in linlayer.getFeatures())
+        if hydraulic_device:
+            error(feedback, 'Pumps and valves cannot be split; select PIPES for an EPANET model')
         if output_mode == OUTPUT_MODE_UPDATE and output_crs != linlayer.sourceCrs():
             error(feedback, "Update input layer requires the selected CRS to match the input line layer CRS")
 

@@ -132,6 +132,8 @@ class ElevationFromRasterAlgorithm(WntProcessingAlgorithm):
             nodelayer = self.parameterAsSource(parameters, self.INPUT_NODES, context)
         demlayer = self.parameterAsRasterLayer(parameters, self.INPUT_DEM, context)
         efield = self.parameterAsString(parameters, self.FIELD_ELEVATION, context)
+        from .base import validate_terrain_target
+        validate_terrain_target(nodelayer, efield)
 
         missing = missing_fields(nodelayer, [efield])
         if missing:

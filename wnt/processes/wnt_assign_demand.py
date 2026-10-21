@@ -100,7 +100,7 @@ class AssignDemandAlgorithm(WntProcessingAlgorithm):
         self.addParameter(
             QgsProcessingParameterFeatureSource(
                 self.INPUT_TARGET,
-                self.tr('Target layer'),
+                self.tr('Target junctions layer (JUNCTIONS)'),
                 types=[QgsProcessing.TypeVectorPoint]
                 )
             )
@@ -115,7 +115,7 @@ class AssignDemandAlgorithm(WntProcessingAlgorithm):
         self.addParameter(
             QgsProcessingParameterFeatureSink(
                 self.OUTPUT_NODES,
-                self.tr('Target with demands layer')
+                self.tr('Junctions with demands layer')
             )
         )
 

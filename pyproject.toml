@@ -1,6 +1,6 @@
 [project]
 name = "wnt"
-version = "1.5.1"
+version = "1.6.0"
 authors = [{ name = "HIDRONEXO", email = "opensource@hidronexo.com" }]
 description = "Water Network Tools: a QGIS plugin for water network modelling"
 readme = "README.md"

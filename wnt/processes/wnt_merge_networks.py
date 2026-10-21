@@ -318,7 +318,13 @@ class MergeNetworksAlgorithm(WntProcessingAlgorithm):
             )
         )
 
+        from .typed_merge import configure
+        configure(self)
+
     def processAlgorithm(self, parameters, context, feedback):
+        from .typed_merge import requested, process
+        if requested(parameters):
+            return process(self, parameters, context, feedback)
         """
         RUN PROCESS
         """

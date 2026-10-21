@@ -2,7 +2,7 @@
 
 # Water Network Tools (WNT)
 
-Water Network Tools is a QGIS Processing plugin for creating, editing, validating, importing and exporting pressurized water network data. It works with WNT node and link layers, EPANET `.inp` model files, EPANET scenario files, WNT XML, LandXML 1.2 pipe networks, LandXML TIN surfaces and pipe-sizing inputs.
+Water Network Tools is a QGIS Processing plugin for creating, editing, validating, importing and exporting pressurized water network data. It works with six EPANET layer categories and generic WNT node/link layers, EPANET `.inp` model files, EPANET scenario files, WNT XML, LandXML 1.2 pipe networks, LandXML TIN surfaces and pipe-sizing inputs.
 
 Requires QGIS 3.38 or later.
 
@@ -28,18 +28,18 @@ Available processes:
 
 Available processes:
 
-- `Network to epanet file (.inp)` - Writes an EPANET model from WNT node and link layers. It can merge the selected network into an existing `.inp` model or create a new model from the internal EPANET template, validating the final graph before writing.
+- `Export EPANET model to INP file` - Writes an EPANET model from six typed junction, reservoir, tank, pipe, pump and valve layers. It can update an existing `.inp` while preserving its other sections, or create a new EPANET 2.0/2.2 model with editable hydraulic options.
 - `Demand to epanet scenario file (.scn)` - Writes an EPANET demand scenario from a selected node demand field.
 - `Pipe properties to EPANET scenario file (.scn)` - Writes an EPANET pipe scenario with diameter and roughness values for pipe links.
 - `Network to XML` - Writes WNT Network XML with versioned network data and preserved EPANET, SWMM, LandXML and custom property domains, or writes a LandXML 1.2 pipe-network file.
-- `Network to pipesizing data file (.pro)` - Writes pipesizing input data with `[SETTINGS]`, `[PRESSURES]`, `[FIRE_SCENARIOS]` and `[PIPES]` sections, including peak/fire factors, required pressures and optional hydrant-pair fire scenarios.
+- `Network to Pipe Sizer data file (.pro)` - Writes Pipe Sizer input data with `[SETTINGS]`, `[PRESSURES]`, `[FIRE_SCENARIOS]` and `[PIPES]` sections, including peak/fire factors, required pressures and optional hydrant-pair fire scenarios.
 - `Network to pressure pipe optimization data file (.ext)` - Writes PPNO (`Pressurized Pipe Network Optimizer`) input data from network layers, an EPANET `.inp` model and a pipe catalog `.cat` file. See https://github.com/hidronexo/ppno.
 
 ### Fire
 
 Available process:
 
-- `Hydrant pairs` - Generates hydrant pairs/calculation scenarios from a hydrant layer, excluding pairs farther apart than the maximum separation. The output can be used by the pipesizing `.pro` exporter as fire scenarios.
+- `Hydrant pairs` - Generates hydrant pairs/calculation scenarios from a hydrant layer, excluding pairs farther apart than the maximum separation. The output can be used by the Pipe Sizer `.pro` exporter as fire scenarios.
 
 ### Graph
 
@@ -56,7 +56,7 @@ Available processes:
 
 - `Configure EPANET lib` - Sets the EPANET toolkit library path used by EPANET result imports.
   Configure only a trusted EPANET 2 toolkit library installed on your system.
-- `Network from EPANET file` - Imports EPANET `.inp` files as WNT node and link layers.
+- `Import EPANET model from INP` - Imports EPANET `.inp` files as six typed layers grouped under the model name. Every layer records the source INP and EPANET version; no generic JSON property field is used.
 - `Network from LandXML file` - Imports one or more LandXML 1.2 pressure, sanitary or storm pipe networks as WNT node and link layers, preserving the declared coordinate reference system when available.
 - `Results from EPANET` - Imports hydraulic results, quality results or both from EPANET simulations.
 - `Network from XML` - Imports WNT Network XML files, including selected network versions, or imports LandXML 1.2 pipe networks as WNT node and link layers.
@@ -84,7 +84,7 @@ HIDRONEXO (opensource@hidronexo.com)
 
 # Water Network Tools (WNT)
 
-Water Network Tools es un plugin de QGIS Processing para crear, editar, validar, importar y exportar datos de redes de agua a presión. Trabaja con capas WNT de nodos y links, archivos de modelo EPANET `.inp`, archivos de escenario EPANET, XML de WNT, redes de tuberías LandXML 1.2, superficies TIN LandXML y datos para dimensionamiento de tuberías.
+Water Network Tools es un plugin de QGIS Processing para crear, editar, validar, importar y exportar datos de redes de agua a presión. Trabaja con capas WNT de nodos y elementos lineales, archivos de modelo EPANET `.inp`, archivos de escenario EPANET, XML de WNT, redes de tuberías LandXML 1.2, superficies TIN LandXML y datos para dimensionamiento de tuberías.
 
 Requiere QGIS 3.38 o posterior.
 
@@ -96,7 +96,7 @@ Cada viñeta siguiente es un algoritmo de WNT en Processing. El texto posterior 
 
 Proceso disponible:
 
-- `Red desde líneas` - Genera capas de nodos y links con estructura EPANET a partir de líneas CAD/GIS. Soporta líneas multipart, fusión de extremos por tolerancia, elevaciones de nodo desde valores cero, valores Z de línea, rásteres MDE o una superficie TIN LandXML seleccionada, y campos opcionales de grado/topología.
+- `Red desde líneas` - Genera capas de nodos y elementos lineales con estructura EPANET a partir de líneas CAD/GIS. Soporta líneas multipart, fusión de extremos por tolerancia, elevaciones de nodo desde valores cero, valores Z de línea, rásteres MDE o una superficie TIN LandXML seleccionada, y campos opcionales de grado/topología.
 
 ### Demanda
 
@@ -110,27 +110,27 @@ Procesos disponibles:
 
 Procesos disponibles:
 
-- `Red a archivo EPANET (.inp)` - Escribe un modelo EPANET desde capas WNT de nodos y links. Puede fusionar la red seleccionada con un modelo `.inp` existente o crear un modelo nuevo desde la plantilla interna de EPANET, validando el grafo final antes de escribir.
+- `Exportar modelo EPANET a archivo INP` - Escribe un modelo EPANET desde seis capas tipadas de nudos de consumo (JUNCTIONS), embalses (RESERVOIRS), depósitos (TANKS), tuberías (PIPES), bombas (PUMPS) y válvulas (VALVES). Puede actualizar un `.inp` existente conservando sus demás secciones o crear un modelo EPANET 2.0/2.2 nuevo con opciones hidráulicas editables.
 - `Demanda a archivo de escenario de EPANET (.scn)` - Escribe un escenario EPANET de demandas desde un campo de demanda de nodos seleccionado.
-- `Propiedades de tuberías a archivo de escenario de EPANET (.scn)` - Escribe un escenario EPANET de tuberías con valores de diámetro y rugosidad para links de tipo tubería.
+- `Propiedades de tuberías a archivo de escenario de EPANET (.scn)` - Escribe un escenario EPANET de tuberías con valores de diámetro y rugosidad para elementos lineales de tipo tubería.
 - `Red a XML` - Escribe WNT Network XML con datos de red versionados y conserva dominios de propiedades EPANET, SWMM, LandXML y personalizados, o escribe una red de tuberías LandXML 1.2.
-- `Red a archivo de datos pipesizing (.pro)` - Escribe datos de entrada para pipesizing con secciones `[SETTINGS]`, `[PRESSURES]`, `[FIRE_SCENARIOS]` y `[PIPES]`, incluyendo factores punta/incendio, presiones requeridas y escenarios opcionales de incendio a partir de pares de hidrantes.
+- `Red a archivo de datos Pipe Sizer (.pro)` - Escribe datos de entrada para Pipe Sizer con secciones `[SETTINGS]`, `[PRESSURES]`, `[FIRE_SCENARIOS]` y `[PIPES]`, incluyendo factores punta/incendio, presiones requeridas y escenarios opcionales de incendio a partir de pares de hidrantes.
 - `Red a archivo de datos para optimización de tuberías a presión (.ext)` - Escribe datos de entrada para PPNO (`Pressurized Pipe Network Optimizer`) desde capas de red, un modelo EPANET `.inp` y un catálogo de tuberías `.cat`. Consulta https://github.com/hidronexo/ppno.
 
 ### Incendio
 
 Proceso disponible:
 
-- `Pares de hidrantes` - Genera pares de hidrantes/escenarios de cálculo desde una capa de hidrantes, excluyendo pares separados por una distancia mayor que la separación máxima. La salida puede usarse como escenarios de incendio en el exportador pipesizing `.pro`.
+- `Pares de hidrantes` - Genera pares de hidrantes/escenarios de cálculo desde una capa de hidrantes, excluyendo pares separados por una distancia mayor que la separación máxima. La salida puede usarse como escenarios de incendio en el exportador Pipe Sizer `.pro`.
 
 ### Grafo
 
 Procesos disponibles:
 
-- `Clasificar` - Clasifica links como ramificados o mallados y asigna un `zone` globalmente único.
+- `Clasificar` - Clasifica elementos lineales como ramificados o mallados y asigna un `zone` globalmente único.
 - `Grados de nodo` - Calcula el grado de grafo de cada nodo de la red.
 - `Red a archivo de grafo` - Exporta la topología de la red a Trivial Graph Format (TGF).
-- `Validar` - Informa nodos huérfanos, nodos duplicados, links duplicados, links con extremos no definidos y bucles.
+- `Validar` - Informa nodos huérfanos, nodos duplicados, elementos lineales duplicados, elementos lineales con extremos no definidos y bucles.
 
 ### Importar
 
@@ -138,10 +138,10 @@ Procesos disponibles:
 
 - `Configurar biblioteca EPANET` - Define la ruta de la biblioteca del toolkit de EPANET usada para importar resultados EPANET.
   Configura únicamente una biblioteca de confianza del toolkit EPANET 2 instalada en el sistema.
-- `Red desde archivo de EPANET` - Importa archivos EPANET `.inp` como capas WNT de nodos y links.
-- `Importar red desde LandXML` - Importa una o varias redes de tuberías a presión, saneamiento o pluviales en formato LandXML 1.2 como capas WNT de nodos y links, conservando el sistema de referencia de coordenadas declarado cuando está disponible.
+- `Modelo EPANET desde archivo INP` - Importa archivos EPANET `.inp` como seis capas tipadas agrupadas bajo el nombre del modelo. Cada capa registra el INP de origen y la versión de EPANET; no se utiliza un campo JSON genérico.
+- `Importar red desde LandXML` - Importa una o varias redes de tuberías a presión, saneamiento o pluviales en formato LandXML 1.2 como capas WNT de nodos y elementos lineales, conservando el sistema de referencia de coordenadas declarado cuando está disponible.
 - `Resultados de EPANET` - Importa resultados hidráulicos, resultados de calidad o ambos desde simulaciones EPANET.
-- `Red desde XML` - Importa archivos WNT Network XML, incluidas versiones de red seleccionadas, o importa redes de tuberías LandXML 1.2 como capas WNT de nodos y links.
+- `Red desde XML` - Importa archivos WNT Network XML, incluidas versiones de red seleccionadas, o importa redes de tuberías LandXML 1.2 como capas WNT de nodos y elementos lineales.
 
 ### Modificar
 
@@ -161,3 +161,47 @@ python package_wnt.py
 ```
 
 HIDRONEXO (opensource@hidronexo.com)
+
+## Version 1.6.0 model workflows
+
+EPANET inputs and outputs use JUNCTIONS, RESERVOIRS, TANKS, PIPES, PUMPS and
+VALVES. A pipe check valve is `PIPES.status = CV`; its start/end order is its
+allowed flow direction. CVPIPE is internal/legacy vocabulary, not a seventh layer.
+
+- INP export keeps the six selectors outside advanced options. Emitters, energy,
+  quality/reactions, calculation stability, times and reports use family-labelled
+  advanced options. Disabled controls retain their values. Existing-model mode
+  preserves global settings, untouched objects and omitted optional properties.
+- Scratch models can load PATTERNS and CURVES from an INP definitions file.
+  References are validated; a pattern reference never invents a pattern.
+  JUNCTIONS.demand_categories holds one `demand [pattern] ; category` line per
+  additional demand definition. When populated, these are the authoritative
+  [DEMANDS] entries, as in EPANET; the junction base demand is not added again.
+- Graph processes evaluate all selected categories together. Results retain ID
+  and time in separate category tables. Merge remaps both global ID namespaces
+  and endpoints; coincident reservoirs/tanks are not automatically coalesced.
+  Only junctions with matching attributes may merge by proximity.
+- Multi-layer update operations remain in QGIS edit buffers for review/save.
+  No sequential commit across unrelated providers is presented as atomic.
+- WNT XML supports typed EPANET layers and a separate generic nodes/links mode.
+  Generic SWMM/LandXML geometry workflows are retained; a LandXML water network
+  does not imply complete EPANET hydraulic properties.
+- Pipe Sizer writes .pro/.psr (three catalog columns); PPNO writes .ext/.cat
+  (four columns including price). Both validate actual INP category membership
+  and preserve zero pressure. Extended-period Pipe Sizer exports omit fire
+  scenarios and use the peak-pressure constraint; steady-state exports support
+  fire_flow_1/fire_flow_2 aliases and optional fire-pressure fallback.
+- Saved two-layer INP callers have an explicit type/property adapter. Canonical
+  and contradictory legacy inputs are rejected. New category outputs use
+  OUTPUT_JUNCTIONS, OUTPUT_PIPES, etc.; saved models must reconnect output names.
+
+Field-level REPORT filters/precision and new rule/control editing are not form
+parameters. Existing INP sections are retained; this exporter is not a reversible
+text editor and does not promise byte-identical comments or whitespace.
+EPANET 2.2 directives follow the [official EPA manual](https://usepa.github.io/EPANET2.2/back_matter.html).
+
+Release checks: use Pixi test/lint/typecheck; run QGIS-marked tests with QGIS
+Python. Set WNT_EPANET_LIBRARY to an external toolkit to enable the four native
+engine acceptance cases. Build with `python package_wnt.py --skip-deploy` and
+run `verify_qgis_package.py wnt/wnt.zip` using QGIS Python (Processing plugins
+must be on its module path). No EPANET library or private project is bundled.

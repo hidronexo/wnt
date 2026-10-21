@@ -7,6 +7,7 @@ from qgis.core import (QgsFeature,
                        QgsProcessingParameterEnum,
                        QgsProcessingParameterFeatureSink,
                        QgsProcessingParameterFile)
+from qgis.core import QgsProcessingParameterDefinition
 from .base import WntProcessingAlgorithm
 from .messages import error, finish, info, message, start
 from ..utils.utils_epanet_api import (
@@ -14,6 +15,8 @@ from ..utils.utils_epanet_api import (
     EpanetError,
     EpanetToolkit,
 )
+from ..utils.utils_epanet_model import PHYSICAL_SECTIONS, NODE_SECTIONS, read_sections
+from ..utils.utils_parser import parse_tokens
 
 
 class ResultsFromEpanetAlgorithm(WntProcessingAlgorithm):
@@ -130,11 +133,26 @@ class ResultsFromEpanetAlgorithm(WntProcessingAlgorithm):
                 optional=True
             )
         )
+        for name in (self.OUTPUT_NODES, self.OUTPUT_LINES, self.OUTPUT_NODE_QUALITY, self.OUTPUT_LINK_QUALITY):
+            definition = self.parameterDefinition(name)
+            definition.setFlags(definition.flags() | QgsProcessingParameterDefinition.FlagHidden | QgsProcessingParameterDefinition.FlagOptional)
+        for section in PHYSICAL_SECTIONS:
+            for quality in (False, True):
+                suffix = '_QUALITY' if quality else ''
+                parameter = QgsProcessingParameterFeatureSink(
+                    'OUTPUT_' + section + suffix,
+                    section + ' — ' + self.tr('Quality results' if quality else 'Hydraulic results'), optional=True)
+                parameter.setMetadata({'wnt_enabled_when': [('RESULT_TYPE', (1, 2) if quality else (0, 2))]})
+                self.addParameter(parameter)
 
     def processAlgorithm(self, parameters, context, feedback):
         """
         RUN PROCESS
         """
+
+        legacy_outputs = (self.OUTPUT_NODES, self.OUTPUT_LINES, self.OUTPUT_NODE_QUALITY, self.OUTPUT_LINK_QUALITY)
+        if self.parameterDefinition('OUTPUT_JUNCTIONS') is not None and not any(name in parameters for name in legacy_outputs):
+            return self._process_categories(parameters, context, feedback)
 
         # INPUT
         epanet_file = self.parameterAsFile(parameters, self.INPUT, context)
@@ -240,6 +258,49 @@ class ResultsFromEpanetAlgorithm(WntProcessingAlgorithm):
 
         # OUTPUT
         return result_map
+
+    def _process_categories(self, parameters, context, feedback):
+        path = self.parameterAsFile(parameters, self.INPUT, context)
+        selection = self.parameterAsEnum(parameters, self.RESULT_TYPE, context)
+        sections = read_sections(path)
+        lookup = {}
+        for section in PHYSICAL_SECTIONS:
+            for row in sections.get(section, []):
+                tokens = parse_tokens(row)
+                if tokens:
+                    lookup[(section in NODE_SECTIONS, tokens[0])] = section
+        try:
+            toolkit = EpanetToolkit.from_config()
+            size = toolkit.constants.max_label_len
+            result = {}
+            for quality in (False, True):
+                if selection != self.RESULT_BOTH and quality != (selection == self.RESULT_QUALITY):
+                    continue
+                if feedback.isCanceled():
+                    return {}
+                rows = toolkit.read_quality_results(path) if quality else toolkit.read_hydraulic_results(path)
+                sinks = {}
+                for section in PHYSICAL_SECTIONS:
+                    fields = self._quality_fields(size) if quality else (
+                        self._hydraulic_node_fields(size) if section in NODE_SECTIONS else self._hydraulic_link_fields(size))
+                    name = 'OUTPUT_' + section + ('_QUALITY' if quality else '')
+                    destination_parameters = dict(parameters)
+                    destination_parameters.setdefault(name, 'TEMPORARY_OUTPUT')
+                    sinks[section], result[name] = self.parameterAsSink(destination_parameters, name, context, fields)
+                for point, records in ((True, rows.node_rows), (False, rows.link_rows)):
+                    for row in records:
+                        if feedback.isCanceled():
+                            return {}
+                        section = lookup.get((point, str(row[1])))
+                        if section is None:
+                            error(feedback, 'Result ID is missing from the model: ' + str(row[1]))
+                        feature = QgsFeature()
+                        feature.setAttributes(row)
+                        if not sinks[section].addFeature(feature):
+                            error(feedback, 'Could not write result: ' + str(row[1]))
+            return result
+        except (EpanetConfigurationError, EpanetError, OSError, ValueError) as exc:
+            error(feedback, str(exc))
 
     @staticmethod
     def _hydraulic_node_fields(max_label_len):

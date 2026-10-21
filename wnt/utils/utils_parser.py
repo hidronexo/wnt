@@ -3,7 +3,7 @@
 
 def parse_tokens(line):
     """Return the whitespace-separated tokens in a data line."""
-    return tuple(token.strip() for token in line.split())
+    return tuple(token.strip() for token in line.partition(';')[0].split())
 
 
 def format_tokens(tokens, separator=' ' * 4):

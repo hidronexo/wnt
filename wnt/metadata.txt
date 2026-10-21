@@ -2,7 +2,7 @@
 name=Water Network Tools
 qgisMinimumVersion=3.38
 description=Water Network Modelling Utilities
-version=1.5.1
+version=1.6.0
 author=HIDRONEXO
 email=opensource@hidronexo.com
 tracker=https://github.com/hidronexo/wnt/issues
@@ -17,6 +17,15 @@ deprecated=False
 server=False
 about=A set of processes for modeling water networks. Starting from scratch or expanding an existing network, it is possible to import and export models, scenarios and other files for network analysis and optimization. Get Started: https://www.youtube.com/playlist?list=PLzE4DxrnNT-Fg0Ztku6jbIG8QEEOHqYEH
 changelog=
+    1.6.0
+        Import EPANET INP models as six typed and grouped model layers.
+        Store source INP and EPANET version provenance without the generic JSON field.
+        Export six model layers and edit EPANET options for new models.
+        Group energy, quality, reactions, stability, time and report options with conditional widgets.
+        Keep check-valve pipes in PIPES with status CV and preserve demand categories.
+        Use typed graph, merge, XML and result outputs; retain generic geometry workflows.
+        Validate solver references and publish Pipe Sizer and PPNO files safely.
+        Coordinate Spanish terminology and repair LandXML TIN CRS handling.
     1.5.1
         Use plain text in plugin metadata for QGIS Plugins compatibility.
     1.5.0

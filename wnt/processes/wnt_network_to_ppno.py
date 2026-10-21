@@ -18,9 +18,11 @@ class NetworkToPpnoAlgorithm(WntProcessingAlgorithm):
     """
 
     # DEFINE CONSTANTS
-    INPUT_NODES = 'INPUT_NODES'
+    INPUT_JUNCTIONS = 'INPUT_JUNCTIONS'
+    INPUT_NODES = INPUT_JUNCTIONS
     FIELD_PRESSURE = 'FIELD_PRESSURE'
-    INPUT_LINES = 'INPUT_LINES'
+    INPUT_PIPES = 'INPUT_PIPES'
+    INPUT_LINES = INPUT_PIPES
     FIELD_SERIES = 'FIELD_SERIES'
     INPUT_ALGORITHMS = 'INPUT_ALGORITHMS'
     INPUT_EPANET = 'INPUT_EPANET'
@@ -92,7 +94,7 @@ class NetworkToPpnoAlgorithm(WntProcessingAlgorithm):
         self.addParameter(
             QgsProcessingParameterFeatureSource(
                 self.INPUT_NODES,
-                self.tr('Input node layer'),
+                self.tr('Junctions layer'),
                 [QgsProcessing.TypeVectorPoint]
                 )
             )
@@ -109,7 +111,7 @@ class NetworkToPpnoAlgorithm(WntProcessingAlgorithm):
         self.addParameter(
             QgsProcessingParameterFeatureSource(
                 self.INPUT_LINES,
-                self.tr('Input link layer'),
+                self.tr('Pipes layer'),
                 [QgsProcessing.TypeVectorLine]
                 )
             )
@@ -198,7 +200,9 @@ class NetworkToPpnoAlgorithm(WntProcessingAlgorithm):
         catalog_file = Path(extfile).with_suffix('.cat')
         if catalog_file.exists():
             warning(feedback, f"Existing pipe catalog will be overwritten: {catalog_file}")
-        catalog_file.write_bytes(catalog_bytes)
+        from ..utils.export_files import catalog_groups, publish_files, ModelReferences, pressure_value
+        groups = catalog_groups(catalog_bytes, 4, encoding='latin-1')
+        references = ModelReferences(epanet_file)
 
         # BUILD EXT FILE
         ppnof = parser.SectionedText()
@@ -214,7 +218,9 @@ class NetworkToPpnoAlgorithm(WntProcessingAlgorithm):
         # PRESSURES SECTION
         ncnt = 0
         for feature in nodes.getFeatures():
-            if feature[pfield]:
+            if feature[pfield] is not None and feature[pfield] != '':
+                references.require('JUNCTIONS', feature['id'])
+                pressure_value(feature[pfield])
                 ncnt += 1
                 line = feature['id']+' '*4 + str(feature[pfield])
                 ppnof.sections['PRESSURES'].append(line)
@@ -223,13 +229,21 @@ class NetworkToPpnoAlgorithm(WntProcessingAlgorithm):
         pcnt = 0
         for feature in links.getFeatures():
             if feature[sfield]:
+                if str(feature[sfield]) not in groups:
+                    error(feedback, 'Pipes reference unknown catalog groups: ' + str(feature[sfield]))
+                references.require('PIPES', feature['id'])
                 pcnt += 1
                 line = (feature['id']+' '*4 + str(feature[sfield]))
                 ppnof.sections['PIPES'].append(line)
 
         # WRITE EXT FILE
         try:
-            ppnof.write(extfile)
+            text = ''.join('[' + name + ']\n' + '\n'.join(lines) + '\n\n'
+                           for name, lines in ppnof.sections.items()) + '[END]\n'
+            if feedback.isCanceled():
+                return {}
+            publish_files({extfile: text.encode('latin-1'), catalog_file: catalog_bytes},
+                          inputs=(epanet_file, catalog_input_file))
         except UnicodeEncodeError as exc:
             error(feedback, "Output contains characters that cannot be written with PPNO latin-1 encoding: " + str(exc))
 

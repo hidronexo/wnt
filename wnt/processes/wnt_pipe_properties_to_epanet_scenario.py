@@ -1,10 +1,14 @@
 """Export an EPANET pipe properties scenario file."""
 
+import io
+import math
+from ..utils.export_files import publish_files
+
 from qgis.core import (QgsProcessing,
                        QgsProcessingParameterFeatureSource,
                        QgsProcessingParameterField,
                        QgsProcessingParameterFileDestination)
-from .base import WntProcessingAlgorithm, missing_fields
+from .base import WntProcessingAlgorithm, missing_fields, field_names
 from .messages import error, finish, info, start
 
 class PipePropertiesToEpanetScenarioAlgorithm(WntProcessingAlgorithm):
@@ -14,7 +18,8 @@ class PipePropertiesToEpanetScenarioAlgorithm(WntProcessingAlgorithm):
 
     # DEFINE CONSTANTS
 
-    INPUT_LINES = 'INPUT_LINES'
+    INPUT_PIPES = 'INPUT_PIPES'
+    INPUT_LINES = INPUT_PIPES
     FIELD_DIAMETER = 'FIELD_DIAMETER'
     FIELD_ROUGHNESS = 'FIELD_ROUGHNESS'
     OUTPUT = 'OUTPUT'
@@ -73,7 +78,7 @@ class PipePropertiesToEpanetScenarioAlgorithm(WntProcessingAlgorithm):
         self.addParameter(
             QgsProcessingParameterFeatureSource(
                 self.INPUT_LINES,
-                self.tr('Input link layer'),
+                self.tr('Pipes layer'),
                 [QgsProcessing.TypeVectorLine]
                 )
             )
@@ -113,7 +118,7 @@ class PipePropertiesToEpanetScenarioAlgorithm(WntProcessingAlgorithm):
         dfield = self.parameterAsString(parameters, self.FIELD_DIAMETER, context)
         rfield = self.parameterAsString(parameters, self.FIELD_ROUGHNESS, context)
 
-        missing = missing_fields(links, ['id', 'type', dfield, rfield])
+        missing = missing_fields(links, ['id', dfield, rfield])
         if missing:
             error(feedback, "Link layer is missing required fields: " + ", ".join(missing))
 
@@ -124,10 +129,14 @@ class PipePropertiesToEpanetScenarioAlgorithm(WntProcessingAlgorithm):
         cnt = 0
         pipe_features = [
             feature for feature in links.getFeatures()
-            if str(feature['type'] or '').upper() in ['PIPE', 'CVPIPE']
+            if 'type' not in field_names(links) or str(feature['type'] or '').upper() in ['PIPE', 'CVPIPE']
         ]
+        for feature in pipe_features:
+            for field in (dfield, rfield):
+                if not math.isfinite(float(feature[field])) or float(feature[field]) <= 0:
+                    error(feedback, 'Pipe diameter and roughness must be finite and positive: ' + str(feature['id']))
         try:
-            with open(scnfile, 'w', encoding='latin-1') as file:
+            with io.StringIO() as file:
                 file.write('; File generated automatically by Water Network Tools \n')
                 file.write('[DIAMETERS] \n')
                 file.write(';Pipe    Diameter \n')
@@ -142,6 +151,9 @@ class PipePropertiesToEpanetScenarioAlgorithm(WntProcessingAlgorithm):
 
                 for feature in pipe_features:
                     file.write('{}    {} \n'.format(feature['id'], feature[rfield]))
+                if feedback.isCanceled():
+                    return {}
+                publish_files({scnfile: file.getvalue().encode('latin-1')})
         except UnicodeEncodeError as exc:
             error(feedback, "Output contains characters that cannot be written: " + str(exc))
 

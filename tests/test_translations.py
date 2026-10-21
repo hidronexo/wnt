@@ -158,8 +158,8 @@ def test_processing_toolbox_entries_use_spanish_catalog():
             'Exportar demandas a escenario de EPANET (.scn)',
         ),
         'processes/wnt_network_from_epanet.py': (
-            'Network from EPANET file',
-            'Importar red desde EPANET',
+            'Import EPANET model from INP',
+            'Importar modelo EPANET desde INP',
         ),
         'processes/wnt_network_from_landxml.py': (
             'Network from LandXML file',
@@ -187,12 +187,12 @@ def test_processing_toolbox_entries_use_spanish_catalog():
         ),
         'processes/wnt_validate.py': ('Validate', 'Validar'),
         'processes/wnt_network_to_epanet.py': (
-            'Network to epanet file (.inp)',
-            'Exportar red a EPANET (.inp)',
+            'Export EPANET model to INP file',
+            'Exportar modelo EPANET a archivo INP',
         ),
         'processes/wnt_network_to_pipesizing.py': (
-            'Network to pipesizing data file (.pro)',
-            'Exportar red a PipeSizing (.pro)',
+            'Network to Pipe Sizer data file (.pro)',
+            'Exportar red a archivo de Pipe Sizer (.pro)',
         ),
         'processes/wnt_network_to_xml.py': ('Network to XML', 'Exportar red a XML'),
         'processes/wnt_hydrant_pairs.py': ('Hydrant pairs', 'Pares de hidrantes'),
@@ -226,7 +226,7 @@ def test_processing_toolbox_entries_use_spanish_catalog():
         'Import': 'Importar',
         'Modify': 'Modificar',
         'Network names': 'Nombres de red',
-        'Links': 'Links de salida',
+        'Links': 'Elementos lineales de salida',
         'Create new output layer': 'Crear capa de salida nueva',
         'Update input layer': 'Actualizar capa de entrada',
     }
@@ -277,8 +277,8 @@ def test_processing_toolbox_entries_use_spanish_ts_fallback(monkeypatch):
             'Exportar demandas a escenario de EPANET (.scn)',
         ),
         'processes/wnt_network_from_epanet.py': (
-            'Network from EPANET file',
-            'Importar red desde EPANET',
+            'Import EPANET model from INP',
+            'Importar modelo EPANET desde INP',
         ),
         'processes/wnt_network_from_landxml.py': (
             'Network from LandXML file',
@@ -306,12 +306,12 @@ def test_processing_toolbox_entries_use_spanish_ts_fallback(monkeypatch):
         ),
         'processes/wnt_validate.py': ('Validate', 'Validar'),
         'processes/wnt_network_to_epanet.py': (
-            'Network to epanet file (.inp)',
-            'Exportar red a EPANET (.inp)',
+            'Export EPANET model to INP file',
+            'Exportar modelo EPANET a archivo INP',
         ),
         'processes/wnt_network_to_pipesizing.py': (
-            'Network to pipesizing data file (.pro)',
-            'Exportar red a PipeSizing (.pro)',
+            'Network to Pipe Sizer data file (.pro)',
+            'Exportar red a archivo de Pipe Sizer (.pro)',
         ),
         'processes/wnt_network_to_xml.py': ('Network to XML', 'Exportar red a XML'),
         'processes/wnt_hydrant_pairs.py': ('Hydrant pairs', 'Pares de hidrantes'),

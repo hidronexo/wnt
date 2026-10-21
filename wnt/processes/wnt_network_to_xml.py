@@ -232,8 +232,14 @@ class NetworkToXmlAlgorithm(WntProcessingAlgorithm):
         """)
 
     def initAlgorithm(self, config=None):
-        self.addParameter(QgsProcessingParameterFeatureSource(self.INPUT_NODES, self.tr("Input nodes layer"), [QgsProcessing.TypeVectorPoint]))
-        self.addParameter(QgsProcessingParameterFeatureSource(self.INPUT_LINES, self.tr("Input links layer"), [QgsProcessing.TypeVectorLine]))
+        self.addParameter(QgsProcessingParameterEnum('LAYER_INPUT_MODE', self.tr('Layer representation'),
+                          options=[self.tr('EPANET categories'), self.tr('Generic nodes and links')], defaultValue=0))
+        self.addParameter(QgsProcessingParameterFeatureSource(self.INPUT_NODES, self.tr("Input nodes layer"), [QgsProcessing.TypeVectorPoint], optional=True))
+        self.addParameter(QgsProcessingParameterFeatureSource(self.INPUT_LINES, self.tr("Input links layer"), [QgsProcessing.TypeVectorLine], optional=True))
+        from ..utils.utils_epanet_model import PHYSICAL_SECTIONS, NODE_SECTIONS
+        for category in PHYSICAL_SECTIONS:
+            geometry = QgsProcessing.TypeVectorPoint if category in NODE_SECTIONS else QgsProcessing.TypeVectorLine
+            self.addParameter(QgsProcessingParameterFeatureSource('INPUT_' + category, category, [geometry], optional=True))
         self.addParameter(QgsProcessingParameterString(self.NETWORK_NAME, self.tr("Network name"), defaultValue="network"))
         self.addParameter(QgsProcessingParameterEnum(self.OUTPUT_FORMAT, self.tr("Output format"), options=list(self.OUTPUT_FORMATS), defaultValue=0))
         self.addParameter(QgsProcessingParameterEnum(self.WNT_MODEL_TYPE, self.tr("WNT model type"), options=list(self.WNT_MODEL_TYPES), defaultValue=0))
@@ -241,6 +247,39 @@ class NetworkToXmlAlgorithm(WntProcessingAlgorithm):
         self.addParameter(QgsProcessingParameterFileDestination(self.OUTPUT, self.tr("XML file"), fileFilter="*.xml"))
 
     def processAlgorithm(self, parameters, context, feedback):
+        from ..utils.utils_epanet_model import PHYSICAL_SECTIONS
+        if self.parameterAsEnum(parameters, 'LAYER_INPUT_MODE', context) == 0 and any('INPUT_' + category in parameters and parameters['INPUT_' + category] for category in PHYSICAL_SECTIONS):
+            from .typed_xml import to_network
+            from .wnt_network_from_xml import wnt_layer_data
+            from pathlib import Path
+            from tempfile import TemporaryDirectory
+            from ..utils.export_files import publish_files
+            sources = {category: self.parameterAsSource(parameters, 'INPUT_' + category, context)
+                       for category in PHYSICAL_SECTIONS if parameters.get('INPUT_' + category)}
+            network, crs = to_network(sources)
+            name = self.parameterAsString(parameters, self.NETWORK_NAME, context) or 'network'
+            output = self.parameterAsFileOutput(parameters, self.OUTPUT, context)
+            with TemporaryDirectory(prefix='wnt-xml-') as folder:
+                temporary = Path(folder) / 'network.xml'
+                if self.parameterAsEnum(parameters, self.OUTPUT_FORMAT, context) == self.FORMAT_WNT:
+                    network.to_xml(temporary, name, network_id=name, model_type='epanet', crs=crs_label(crs), replace=True)
+                else:
+                    node_fields, link_fields, node_features, link_features, _crs = wnt_layer_data(network)
+
+                    class Source:
+                        def __init__(self, features):
+                            self.features = features
+
+                        def getFeatures(self):
+                            return iter(self.features)
+
+                    write_landxml(temporary, Source(node_features), Source(link_features),
+                                  set(node_fields.names()), set(link_fields.names()), name,
+                                  self.LANDXML_NETWORK_TYPES[self.parameterAsEnum(parameters, self.LANDXML_NETWORK_TYPE, context)], crs)
+                if feedback.isCanceled():
+                    return {}
+                publish_files({output: temporary.read_bytes()})
+            return {self.OUTPUT: output}
         nodes = self.parameterAsSource(parameters, self.INPUT_NODES, context)
         links = self.parameterAsSource(parameters, self.INPUT_LINES, context)
         network_name = self.parameterAsString(parameters, self.NETWORK_NAME, context) or "network"

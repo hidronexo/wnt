@@ -83,7 +83,7 @@ class UpdateAssignmentAlgorithm(WntProcessingAlgorithm):
         self.addParameter(
             QgsProcessingParameterFeatureSource(
                 self.INPUT_TARGET,
-                self.tr('Target layer'),
+                self.tr('Target junctions layer (JUNCTIONS)'),
                 types=[QgsProcessing.TypeVectorPoint]
                 )
             )

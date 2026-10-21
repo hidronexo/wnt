@@ -22,3 +22,6 @@ toolkit.ini
 package_wnt.bat
 
 .build-tools/
+.pixi/
+.qgis-check*/
+.qgis-baseline*/

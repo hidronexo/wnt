@@ -1,6 +1,8 @@
 """Set node elevations from LandXML TIN surfaces."""
 
 from qgis.core import (QgsCoordinateReferenceSystem,
+                       QgsCoordinateTransform,
+                       QgsProject,
                        QgsProcessing,
                        QgsFeatureSink,
                        QgsProcessingParameterEnum,
@@ -148,6 +150,8 @@ class ElevationFromTINAlgorithm(WntProcessingAlgorithm):
         else:
             nodelayer = self.parameterAsSource(parameters, self.INPUT_NODES, context)
         efield = self.parameterAsString(parameters, self.FIELD_ELEVATION, context)
+        from .base import validate_terrain_target
+        validate_terrain_target(nodelayer, efield)
         tinlayer = self.parameterAsFile(parameters, self.INPUT_TIN, context)
         selected_surface_name = self.parameterAsString(parameters, self.SURFACE_NAME, context).strip()
         if not selected_surface_name and self.SURFACE_NAMES in parameters:
@@ -198,6 +202,9 @@ class ElevationFromTINAlgorithm(WntProcessingAlgorithm):
                         crs.authid() or "unknown",
                     ),
                 )
+                transform = QgsCoordinateTransform(crs, declared_crs, QgsProject.instance())
+                transformed_points = [transform.transform(x, y) for x, y in point_tuples]
+                point_tuples = [(point.x(), point.y()) for point in transformed_points]
             elif not surface.crs_authid and not surface.crs_wkt:
                 warning(feedback, "LandXML does not declare a CRS; coordinates are assumed to match the node layer")
             surface_elevations = surface.elevations(point_tuples)

@@ -3,7 +3,13 @@
 The English source strings and Spanish Qt catalog use the shared
 `WaterNetworkTools` context. Keep algorithm IDs unchanged. Use infinitives for
 actions, `Importar`/`Exportar` for file transfers, `cota` for node elevation,
-and retain EPANET, PPNO, PipeSizing, XML and file extensions.
+and retain EPANET, PPNO, Pipe Sizer, XML and file extensions.
+
+For 1.6 use nudos de consumo (JUNCTIONS), embalses (RESERVOIRS), depósitos
+(TANKS), tuberías (PIPES), bombas (PUMPS) and válvulas (VALVES). Generic graph
+nodes/edges remain nodos/aristas; generic geometry links are elementos lineales.
+Distinguish cota, altura piezométrica and presión. The option inventory in
+utils_epanet_options.py is included in catalog validation, despite dynamic labels.
 
 1. Run `python translation_catalog.py --update` after changing UI text. It adds
    missing literal `tr()` strings as unfinished, preserving existing translations.

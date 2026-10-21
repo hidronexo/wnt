@@ -1,469 +1,297 @@
-"""Import network layers from an EPANET input file."""
+"""Import an EPANET model as six typed QGIS layers."""
 
-import json
 from pathlib import Path
+
 from qgis.PyQt.QtCore import QMetaType
-from qgis.core import (                       QgsFields,
-                       QgsField,
-                       QgsFeature,
-                       QgsProcessingParameterFile,
-                       QgsProcessingParameterFeatureSink,
-                       QgsProcessingParameterCrs,
-                       QgsGeometry,
-                       QgsWkbTypes
-                       )
+from qgis.core import (
+    QgsFeature, QgsField, QgsFields, QgsGeometry,
+    QgsProcessingLayerPostProcessorInterface, QgsProject,
+    QgsProcessingParameterCrs, QgsProcessingParameterEnum,
+    QgsProcessingParameterFeatureSink, QgsProcessingParameterFile, QgsWkbTypes,
+)
+
 from .base import WntProcessingAlgorithm, set_output_layer_name
-from ..utils import utils_core as tools
-from ..utils.utils_parser import SectionedText, parse_tokens
 from .messages import crs as log_crs
 from .messages import error, finish, info, start
+from ..utils import utils_core as tools
+from ..utils.utils_epanet_model import (
+    LAYER_SCHEMAS, detect_epanet_version, normalise_source, read_sections,
+)
+from ..utils.utils_parser import parse_tokens
 
 
-NODE_KEY_MAP = {
-    "demand": "base_demand",
-    "head": "total_head",
-    "init_level": "initial_level",
-    "min_level": "min_level",
-    "max_level": "max_level",
-    "diameter": "diameter",
-    "min_volume": "min_volume",
-    "volume_curve": "volume_curve",
-}
-
-LINK_KEY_MAP = {
-    "minor_loss": "minor_loss",
-    "setting": "valve_setting",
-    "pump_power": "pump_power",
-    "pump_head": "head_curve",
-    "pump_speed": "pump_speed",
-    "pump_pattern": "pump_pattern",
-    "parameters": "pump_parameters",
-}
-
-NODE_JSON_KEYS = {
-    "JUNCTION": (
-        "base_demand",
-        "demand_pattern",
-        "demands",
-        "emitter_coefficient",
-        "initial_quality",
-        "source_type",
-        "source_quality",
-        "source_pattern",
-        "tag",
-    ),
-    "RESERVOIR": (
-        "total_head",
-        "head_pattern",
-        "initial_quality",
-        "source_type",
-        "source_quality",
-        "source_pattern",
-        "tag",
-    ),
-    "TANK": (
-        "initial_level",
-        "min_level",
-        "max_level",
-        "diameter",
-        "min_volume",
-        "volume_curve",
-        "initial_quality",
-        "source_type",
-        "source_quality",
-        "source_pattern",
-        "mixing_model",
-        "mixing_fraction",
-        "tank_reaction_coeff",
-        "tag",
-    ),
-}
-
-LINK_JSON_KEYS = {
-    "PIPE": (
-        "length",
-        "diameter",
-        "roughness",
-        "minor_loss",
-        "initial_status",
-        "bulk_reaction_coeff",
-        "wall_reaction_coeff",
-        "tag",
-    ),
-    "CVPIPE": (
-        "length",
-        "diameter",
-        "roughness",
-        "minor_loss",
-        "initial_status",
-        "bulk_reaction_coeff",
-        "wall_reaction_coeff",
-        "tag",
-    ),
-    "PUMP": (
-        "pump_parameters",
-        "pump_power",
-        "head_curve",
-        "pump_speed",
-        "pump_pattern",
-        "initial_status",
-        "energy_price",
-        "energy_pattern",
-        "efficiency_curve",
-        "tag",
-    ),
-    "VALVE": (
-        "diameter",
-        "valve_type",
-        "valve_setting",
-        "minor_loss",
-        "initial_status",
-        "tag",
-    ),
-}
+TYPE_MAP = {"string": QMetaType.QString, "double": QMetaType.Double}
 
 
-def section_tokens(sections, name):
-    """Yield tokenized lines from one EPANET section."""
+class ModelLayerPostProcessor(QgsProcessingLayerPostProcessorInterface):
+    """Attach model metadata and place a loaded output in its model group."""
+
+    def __init__(self, model_name, source, version, section):
+        super().__init__()
+        self.model_name = model_name
+        self.source = source
+        self.version = version
+        self.section = section
+
+    def postProcessLayer(self, layer, context, feedback):  # noqa: N802
+        layer.setCustomProperty("wnt/model_name", self.model_name)
+        layer.setCustomProperty("wnt/source_inp", self.source)
+        layer.setCustomProperty("wnt/epanet_version", self.version)
+        layer.setCustomProperty("wnt/epanet_section", self.section)
+        project = context.project() if context is not None else None
+        project = project or QgsProject.instance()
+        root = project.layerTreeRoot()
+        node = root.findLayer(layer.id())
+        if node is None:
+            return
+        group = root.findGroup(self.model_name) or root.addGroup(self.model_name)
+        if node.parent() == group:
+            return
+        group.addChildNode(node.clone())
+        node.parent().removeChildNode(node)
+
+
+def _tokens(sections, name):
     for line in sections.get(name, []):
-        tokens = parse_tokens(line)
-        if tokens:
-            yield tokens
+        values = parse_tokens(line)
+        if values:
+            yield values
 
 
-def epanet_json(properties):
-    """Serialize EPANET properties as stable compact JSON."""
-    return json.dumps(properties, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
-
-
-def properties_template(keys):
-    """Return an editable JSON template with all expected keys present."""
-    return dict.fromkeys(keys)
-
-
-def base_node_properties(node):
-    """Return JSON-ready EPANET node properties from the core model."""
-    node_type = node.get_type()
-    properties = properties_template(NODE_JSON_KEYS.get(node_type, ()))
-    for key, value in node.epanet.items():
-        if key == "pattern":
-            if node_type == "RESERVOIR":
-                properties["head_pattern"] = value
-            else:
-                properties["demand_pattern"] = value
-        else:
-            properties[NODE_KEY_MAP.get(key, key)] = value
-    return properties
-
-
-def base_link_properties(link):
-    """Return JSON-ready EPANET link properties from the core model."""
-    link_type = link.get_type()
-    keys = LINK_JSON_KEYS.get(link_type, LINK_JSON_KEYS["VALVE"])
-    properties = properties_template(keys)
-    for key, value in link.epanet.items():
-        if key == "status":
-            properties["initial_status"] = value
-        else:
-            properties[LINK_KEY_MAP.get(key, key)] = value
-    if link_type not in {"PIPE", "CVPIPE", "PUMP"}:
-        properties["valve_type"] = link_type
-    return properties
-
-
-def read_epanet_sections(path):
-    """Read an EPANET INP file into section lines."""
-    text = SectionedText()
-    text.read(path)
-    return text.sections
-
-
-def extra_epanet_properties(sections):
-    """Return supplemental node/link EPANET properties keyed by element id."""
-    node_props = {}
-    link_props = {}
-
-    for tokens in section_tokens(sections, "DEMANDS"):
-        if len(tokens) < 2:
+def _supplemental_properties(sections):
+    """Collect supported properties stored outside the physical sections."""
+    nodes = {}
+    links = {}
+    for line in sections.get('DEMANDS', []):
+        parts = line.split(None, 1)
+        identifier, definition = parts if len(parts) == 2 else (parts[0], '')
+        props = nodes.setdefault(identifier, {})
+        props['demand_categories'] = '\n'.join(filter(None, (props.get('demand_categories'), definition.strip())))
+    for values in _tokens(sections, "EMITTERS"):
+        if len(values) >= 2:
+            nodes.setdefault(values[0], {})["emitter_coefficient"] = values[1]
+    for values in _tokens(sections, "QUALITY"):
+        if len(values) >= 2:
+            nodes.setdefault(values[0], {})["initial_quality"] = values[1]
+    for values in _tokens(sections, "SOURCES"):
+        if len(values) >= 3:
+            props = nodes.setdefault(values[0], {})
+            props.update(source_type=values[1], source_quality=values[2])
+            props["source_pattern"] = values[3] if len(values) > 3 else None
+    for values in _tokens(sections, "MIXING"):
+        if len(values) >= 2:
+            props = nodes.setdefault(values[0], {})
+            props["mixing_model"] = values[1]
+            props["mixing_fraction"] = values[2] if len(values) > 2 else None
+    for values in _tokens(sections, "REACTIONS"):
+        if len(values) < 3:
             continue
-        node_id = tokens[0]
-        demand = {"base_demand": tokens[1]}
-        if len(tokens) > 2:
-            demand["demand_pattern"] = tokens[2]
-        if len(tokens) > 3:
-            demand["category"] = tokens[3]
-        node_props.setdefault(node_id, {}).setdefault("demands", []).append(demand)
-
-    for tokens in section_tokens(sections, "EMITTERS"):
-        if len(tokens) >= 2:
-            node_props.setdefault(tokens[0], {})["emitter_coefficient"] = tokens[1]
-
-    for tokens in section_tokens(sections, "QUALITY"):
-        if len(tokens) >= 2:
-            node_props.setdefault(tokens[0], {})["initial_quality"] = tokens[1]
-
-    for tokens in section_tokens(sections, "SOURCES"):
-        if len(tokens) < 3:
-            continue
-        properties = node_props.setdefault(tokens[0], {})
-        properties["source_type"] = tokens[1]
-        properties["source_quality"] = tokens[2]
-        if len(tokens) > 3:
-            properties["source_pattern"] = tokens[3]
-
-    for tokens in section_tokens(sections, "MIXING"):
-        if len(tokens) < 2:
-            continue
-        properties = node_props.setdefault(tokens[0], {})
-        properties["mixing_model"] = tokens[1]
-        if len(tokens) > 2:
-            properties["mixing_fraction"] = tokens[2]
-
-    for tokens in section_tokens(sections, "REACTIONS"):
-        if len(tokens) < 3:
-            continue
-        reaction_type = tokens[0].upper()
+        reaction_type = values[0].upper()
         if reaction_type == "TANK":
-            node_props.setdefault(tokens[1], {})["tank_reaction_coeff"] = tokens[2]
+            nodes.setdefault(values[1], {})["tank_reaction_coeff"] = values[2]
         elif reaction_type == "BULK":
-            link_props.setdefault(tokens[1], {})["bulk_reaction_coeff"] = tokens[2]
+            links.setdefault(values[1], {})["bulk_reaction_coeff"] = values[2]
         elif reaction_type == "WALL":
-            link_props.setdefault(tokens[1], {})["wall_reaction_coeff"] = tokens[2]
-
-    for tokens in section_tokens(sections, "STATUS"):
-        if len(tokens) >= 2:
-            link_props.setdefault(tokens[0], {})["initial_status"] = " ".join(tokens[1:])
-
-    for tokens in section_tokens(sections, "ENERGY"):
-        if len(tokens) < 4 or tokens[0].upper() != "PUMP":
+            links.setdefault(values[1], {})["wall_reaction_coeff"] = values[2]
+    for values in _tokens(sections, "STATUS"):
+        if len(values) >= 2:
+            links.setdefault(values[0], {})["status"] = " ".join(values[1:])
+    for values in _tokens(sections, "ENERGY"):
+        if len(values) < 4 or values[0].upper() != "PUMP":
             continue
-        key = tokens[2].lower()
-        properties = link_props.setdefault(tokens[1], {})
-        if key == "price":
-            properties["energy_price"] = tokens[3]
-        elif key == "pattern":
-            properties["energy_pattern"] = tokens[3]
-        elif key == "effic":
-            properties["efficiency_curve"] = tokens[3]
+        field = {"PRICE": "energy_price", "PATTERN": "energy_pattern", "EFFIC": "efficiency_curve"}.get(values[2].upper())
+        if field:
+            links.setdefault(values[1], {})[field] = values[3]
+    for values in _tokens(sections, "TAGS"):
+        if len(values) >= 3:
+            target = nodes if values[0].upper() == "NODE" else links
+            target.setdefault(values[1], {})["tag"] = " ".join(values[2:])
+    return nodes, links
 
-    for tokens in section_tokens(sections, "TAGS"):
-        if len(tokens) < 3:
-            continue
-        tag_type = tokens[0].upper()
-        if tag_type == "NODE":
-            node_props.setdefault(tokens[1], {})["tag"] = " ".join(tokens[2:])
-        elif tag_type == "LINK":
-            link_props.setdefault(tokens[1], {})["tag"] = " ".join(tokens[2:])
 
-    return node_props, link_props
+def _fields(schema):
+    result = QgsFields()
+    for name, kind in schema:
+        result.append(QgsField(name, TYPE_MAP[kind]))
+    return result
+
+
+def _attributes(schema, values):
+    return [values.get(name) for name, _kind in schema]
+
+
+def _node_values(node, extra, source, version):
+    props = dict(node.epanet)
+    values = {"id": node.name(), "elevation": node.get_elevation()}
+    if node.get_type() == "JUNCTION":
+        values.update(base_demand=props.get("demand"), demand_pattern=props.get("pattern"))
+    elif node.get_type() == "RESERVOIR":
+        values.update(total_head=props.get("head", node.get_elevation()), head_pattern=props.get("pattern"))
+    elif node.get_type() == "TANK":
+        values.update(
+            initial_level=props.get("init_level"), min_level=props.get("min_level"),
+            max_level=props.get("max_level"), diameter=props.get("diameter"),
+            min_volume=props.get("min_volume"), volume_curve=props.get("volume_curve"),
+        )
+    values.update(extra.get(node.name(), {}))
+    values.update(inp_source=source, epanet_version=version)
+    return values
+
+
+def _link_values(link, extra, source, version):
+    props = dict(link.epanet)
+    values = {"id": link.name(), "start": link.start(), "end": link.end()}
+    link_type = link.get_type()
+    if link_type in ("PIPE", "CVPIPE"):
+        values.update(
+            length=props.get("length"), diameter=props.get("diameter"),
+            roughness=props.get("roughness"), minor_loss=props.get("minor_loss"),
+            status="CV" if link_type == "CVPIPE" else props.get("status"),
+        )
+    elif link_type == "PUMP":
+        values.update(
+            pump_power=props.get("pump_power"), head_curve=props.get("pump_head"),
+            pump_speed=props.get("pump_speed"), pump_pattern=props.get("pump_pattern"),
+        )
+    else:
+        values.update(
+            diameter=props.get("diameter"), valve_type=link_type,
+            valve_setting=props.get("setting"), minor_loss=props.get("minor_loss"),
+        )
+    values.update(extra.get(link.name(), {}))
+    values.update(inp_source=source, epanet_version=version)
+    return values
 
 
 class NetworkFromEpanetAlgorithm(WntProcessingAlgorithm):
-    """
-    Build a network from an EPANET file.
-    """
+    """Create six editable model layers from an EPANET INP file."""
 
-    # DEFINE CONSTANTS
-
-    INPUT = 'INPUT'
-    OUTPUT_NODES = 'OUTPUT_NODES'
-    OUTPUT_LINES = 'OUTPUT_LINES'
-    CRS = 'CRS'
-
+    INPUT = "INPUT"
+    CRS = "CRS"
+    VERSION_MODE = "VERSION_MODE"
+    VERSION_OPTIONS = ("Automatic", "2.0", "2.2")
+    OUTPUT_JUNCTIONS = "OUTPUT_JUNCTIONS"
+    OUTPUT_RESERVOIRS = "OUTPUT_RESERVOIRS"
+    OUTPUT_TANKS = "OUTPUT_TANKS"
+    OUTPUT_PIPES = "OUTPUT_PIPES"
+    OUTPUT_PUMPS = "OUTPUT_PUMPS"
+    OUTPUT_VALVES = "OUTPUT_VALVES"
+    OUTPUTS = {
+        "JUNCTIONS": OUTPUT_JUNCTIONS, "RESERVOIRS": OUTPUT_RESERVOIRS,
+        "TANKS": OUTPUT_TANKS, "PIPES": OUTPUT_PIPES,
+        "PUMPS": OUTPUT_PUMPS, "VALVES": OUTPUT_VALVES,
+    }
 
     def createInstance(self):
-        """
-        createInstance must return a new copy of algorithm.
-        """
         return NetworkFromEpanetAlgorithm()
 
     def name(self):
-        """
-        Returns the unique algorithm name, used for identifying the algorithm.
-        """
-        return 'network_from_epanet'
+        return "network_from_epanet"
 
     def displayName(self):
-        """
-        Returns the translated algorithm name.
-        """
-        return self.tr('Network from EPANET file')
+        return self.tr("Import EPANET model from INP")
 
     def group(self):
-        """
-        Returns the name of the group this algorithm belongs to.
-        """
-        return self.tr('Import')
+        return self.tr("Import")
 
     def groupId(self):
-        """
-        Returns the unique ID of the group this algorithm belongs to.
-        """
-        return 'import'
+        return "import"
 
     def shortHelpString(self):
-        """
-        Returns a localised short help string for the algorithm.
-        """
-        return self.tr('''<p>Imports an EPANET <code>.inp</code> file and creates node and link layers.</p>
-<ul>
-<li>Node attributes are <code>id</code>, <code>type</code>, <code>elevation</code> and <code>epanet</code>.</li>
-<li>Link attributes are <code>id</code>, <code>start</code>, <code>end</code>, <code>type</code> and <code>epanet</code>.</li>
-<li>The <code>epanet</code> field stores type-specific EPANET properties as JSON.</li>
-<li>Quality, source, mixing, reaction, status, energy, demand and tag data are preserved when present.</li>
-</ul>
-        ''')
+        return self.tr(
+            "<p>Imports an EPANET INP file as six typed layers: junctions, reservoirs, "
+            "tanks, pipes, pumps and valves.</p><p>Every layer contains source-file and "
+            "EPANET-version provenance. The former <code>epanet</code> JSON field is not created.</p>"
+        )
 
     def initAlgorithm(self, config=None):
-        """
-         Define the inputs and outputs of the algorithm.
-        """
-
-        # ADD INPUT FILE AND CRS SELECTOR
-        self.addParameter(
-            QgsProcessingParameterFile(
-                self.INPUT,
-                self.tr('EPANET file'),
-                extension='inp'
-                )
-            )
-        self.addParameter(
-            QgsProcessingParameterCrs(
-                self.CRS,
-                self.tr('Coordinate reference system (CRS)')
-                )
-            )
-        # ADD NODE AND LINK SINKS
-        self.addParameter(
-            QgsProcessingParameterFeatureSink(
-                self.OUTPUT_NODES,
-                self.tr('EPANET nodes')
-                )
-            )
-        self.addParameter(
-            QgsProcessingParameterFeatureSink(
-                self.OUTPUT_LINES,
-                self.tr('EPANET links'),
-                )
-            )
+        self.addParameter(QgsProcessingParameterFile(self.INPUT, self.tr("EPANET file"), extension="inp"))
+        self.addParameter(QgsProcessingParameterCrs(self.CRS, self.tr("Coordinate reference system (CRS)")))
+        self.addParameter(QgsProcessingParameterEnum(
+            self.VERSION_MODE, self.tr("EPANET version"),
+            options=[self.tr(value) for value in self.VERSION_OPTIONS], defaultValue=0,
+        ))
+        for section, output in self.OUTPUTS.items():
+            self.addParameter(QgsProcessingParameterFeatureSink(output, self.tr(section.title())))
 
     def processAlgorithm(self, parameters, context, feedback):
-        """
-        RUN PROCESS
-        """
-        # INPUT
-        epanetf = self.parameterAsFile(parameters, self.INPUT, context)
+        inp_path = self.parameterAsFile(parameters, self.INPUT, context)
         crs = self.parameterAsCrs(parameters, self.CRS, context)
-        output_name = Path(epanetf).stem
-
-        # SHOW INFO
+        version_mode = self.parameterAsEnum(parameters, self.VERSION_MODE, context)
+        model_name = Path(inp_path).stem
+        source = normalise_source(inp_path)
         start(feedback, self.displayName())
         log_crs(feedback, crs)
 
-        # READ NETWORK
+        sections = read_sections(inp_path)
+        detected_version = detect_epanet_version(sections)
+        version = detected_version if version_mode == 0 else self.VERSION_OPTIONS[version_mode]
+        if version_mode == 0 and detected_version == "2.0" and hasattr(feedback, "pushWarning"):
+            feedback.pushWarning(self.tr(
+                "The INP contains no unambiguous EPANET 2.2 syntax; version 2.0 compatibility was assumed."
+            ))
         network = tools.WntNetwork()
         try:
-            network.from_epanet(epanetf)
+            network.from_epanet(inp_path)
         except (tools.WntError, OSError, ValueError, IndexError) as exc:
             error(feedback, str(exc))
-        nodes = network.nodes()
-        links = network.links()
-        sections = read_epanet_sections(epanetf)
-        node_extra, link_extra = extra_epanet_properties(sections)
+        node_extra, link_extra = _supplemental_properties(sections)
 
-        # GENERATE NODES LAYER
-        newfields = QgsFields()
-        newfields.append(QgsField("id", QMetaType.QString))
-        newfields.append(QgsField("type", QMetaType.QString))
-        newfields.append(QgsField("elevation", QMetaType.Double))
-        newfields.append(QgsField("epanet", QMetaType.QString))
-        (node_sink, node_id) = self.parameterAsSink(
-            parameters,
-            self.OUTPUT_NODES,
-            context,
-            newfields,
-            QgsWkbTypes.Point,
-            crs
+        sinks = {}
+        result = {}
+        for section, output in self.OUTPUTS.items():
+            point_section = section in ("JUNCTIONS", "RESERVOIRS", "TANKS")
+            geometry_type = QgsWkbTypes.Point if point_section else QgsWkbTypes.LineString
+            sink, destination = self.parameterAsSink(
+                parameters, output, context, _fields(LAYER_SCHEMAS[section]), geometry_type, crs
             )
-        set_output_layer_name(context, node_id, f"{output_name}_nodes")
+            sinks[section] = sink
+            result[output] = destination
+            set_output_layer_name(context, destination, f"{model_name}_{section.lower()}")
+            if context is not None:
+                details = context.layerToLoadOnCompletionDetails(destination)
+                details.groupName = model_name
+                processor = ModelLayerPostProcessor(model_name, source, version, section)
+                if hasattr(details, "setPostProcessor"):
+                    details.setPostProcessor(processor)
+                else:
+                    details.groupName = model_name
 
-        # ADD NODES
-        ncnt = 0
-        ntot = len(nodes)
-        for node in nodes:
-            #add feature to sink
-            ncnt += 1
-            f = QgsFeature()
-            node_wkt = node.to_wkt()
-            if node_wkt:
-                f.setGeometry(QgsGeometry.fromWkt(node_wkt))
-            properties = base_node_properties(node)
-            properties.update(node_extra.get(node.name(), {}))
-            f.setAttributes(
-                [node.name(), node.get_type(), node.get_elevation(), epanet_json(properties)]
-            )
+        counts = {section: 0 for section in self.OUTPUTS}
+        for node in network.nodes():
+            if feedback.isCanceled():
+                return {}
+            section = {"JUNCTION": "JUNCTIONS", "RESERVOIR": "RESERVOIRS", "TANK": "TANKS"}.get(node.get_type())
+            if not section:
+                continue
+            feature = QgsFeature()
+            if node.to_wkt():
+                feature.setGeometry(QgsGeometry.fromWkt(node.to_wkt()))
+            feature.setAttributes(_attributes(
+                LAYER_SCHEMAS[section], _node_values(node, node_extra, source, version)
+            ))
+            if not sinks[section].addFeature(feature):
+                error(feedback, 'Could not write ' + section)
+            counts[section] += 1
 
-            # ADD NODE
-            node_sink.addFeature(f)
+        for link in network.links():
+            if feedback.isCanceled():
+                return {}
+            link_type = link.get_type()
+            section = "PIPES" if link_type in ("PIPE", "CVPIPE") else "PUMPS" if link_type == "PUMP" else "VALVES"
+            feature = QgsFeature()
+            if link.to_wkt():
+                feature.setGeometry(QgsGeometry.fromWkt(link.to_wkt()))
+            feature.setAttributes(_attributes(
+                LAYER_SCHEMAS[section], _link_values(link, link_extra, source, version)
+            ))
+            if not sinks[section].addFeature(feature):
+                error(feedback, 'Could not write ' + section)
+            counts[section] += 1
 
-            # SHOW PROGRESS
-            if ntot > 0 and ncnt % 100 == 0:
-                feedback.setProgress(50*ncnt/ntot) # Update the progress bar
-
-        # GENERATE LINKS LAYER
-        newfields = QgsFields()
-        newfields.append(QgsField("id", QMetaType.QString))
-        newfields.append(QgsField("start", QMetaType.QString))
-        newfields.append(QgsField("end", QMetaType.QString))
-        newfields.append(QgsField("type", QMetaType.QString))
-        newfields.append(QgsField("epanet", QMetaType.QString))
-        (link_sink, link_id) = self.parameterAsSink(
-            parameters,
-            self.OUTPUT_LINES,
-            context,
-            newfields,
-            QgsWkbTypes.LineString,
-            crs
-            )
-        set_output_layer_name(context, link_id, f"{output_name}_links")
-
-        # ADD LINKS
-        lcnt = 0
-        ltot = len(links)
-        for link in links:
-            lcnt += 1
-            f = QgsFeature()
-            link_wkt = link.to_wkt()
-            if link_wkt:
-                f.setGeometry(QgsGeometry.fromWkt(link_wkt))
-            properties = base_link_properties(link)
-            properties.update(link_extra.get(link.name(), {}))
-            f.setAttributes(
-                [
-                    link.name(),
-                    link.start(),
-                    link.end(),
-                    link.get_type(),
-                    epanet_json(properties),
-                ]
-            )
-
-            # ADD LINK
-            link_sink.addFeature(f)
-
-            # SHOW PROGRESS
-            if ltot > 0 and lcnt % 100 == 0:
-                feedback.setProgress(50+50*lcnt/ltot) # Update the progress bar
-
-        # SHOW INFO
-        info(feedback, "Input file", epanetf)
-        info(feedback, "Nodes imported", ncnt)
-        info(feedback, "Links imported", lcnt)
+        info(feedback, "Input file", source)
+        info(feedback, "EPANET version", version)
+        for section, count in counts.items():
+            info(feedback, f"{section.title()} imported", count)
         finish(feedback)
-
-        # PROCESS CANCELED
-        if feedback.isCanceled():
-            return {}
-
-        # OUTPUT
-        return {self.OUTPUT_NODES: node_id, self.OUTPUT_LINES: link_id}
+        return {} if feedback.isCanceled() else result
